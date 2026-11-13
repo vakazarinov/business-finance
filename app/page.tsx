@@ -398,6 +398,37 @@ export default function Home() {
                   <label className="text-xs">По<input aria-label="По дату" type="date" value={dates.to} onChange={(event) => setDates({ ...dates, to: event.target.value })} className="mt-1 w-full rounded-xl border p-2" /></label>
                 </div>}
               </section>
+              <details className="mb-5 rounded-2xl bg-white p-4">
+                <summary className="cursor-pointer text-sm font-semibold">Настройки распределения прибыли</summary>
+                <div className="mt-4 space-y-3">
+                  <p className="text-sm text-slate-500">Выберите доли для расчёта сводки. По умолчанию каждый получает по 25%.</p>
+                  <label className="flex items-start gap-2 text-sm">
+                    <input type="radio" name="share-mode" checked={shareMode === "equal"} onChange={() => setShareMode("equal")} className="mt-1" />
+                    <span>Равные доли — 25% каждому</span>
+                  </label>
+                  <label className="flex items-start gap-2 text-sm">
+                    <input type="radio" name="share-mode" checked={shareMode === "custom"} onChange={() => setShareMode("custom")} className="mt-1" />
+                    <span>Индивидуальные доли</span>
+                  </label>
+                  {shareMode === "custom" && (
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      {PEOPLE.map((person) => <label key={person} className="mb-3 flex items-center justify-between gap-3 text-sm">
+                        <span>{person}</span>
+                        <span className="flex items-center gap-2">
+                          <input inputMode="decimal" aria-label={`Доля: ${person}`} value={shareDraft[person] || ""}
+                            onChange={(event) => setShareDraft({ ...shareDraft, [person]: event.target.value })}
+                            className="w-24 rounded-lg border border-slate-300 bg-white p-2 text-right" />%
+                        </span>
+                      </label>)}
+                      <p className="mb-3 text-xs text-slate-500">Сумма долей — ровно 100%. Настроенные доли сохраняются для всех участников и применяются к выбранному периоду. Старые расчёты отдельно не фиксируются.</p>
+                      <button type="button" disabled={loading || dataStatus !== "ready"} onClick={saveShares}
+                        className="w-full rounded-xl bg-slate-900 p-3 font-semibold text-white disabled:opacity-50">
+                        Сохранить индивидуальные доли
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </details>
               {(dataStatus === "ready" || dataStatus === "cached") ? <section className="mb-5 rounded-3xl bg-slate-900 p-6 text-white">
                 <p className="text-sm text-slate-300">Прибыль</p><p className="mt-1 text-4xl font-bold">{formatRub(profit)}</p>
                 <div className="mt-5 grid grid-cols-2 gap-4">
@@ -406,7 +437,20 @@ export default function Home() {
                 </div>
               </section> : <section className="mb-5 rounded-3xl bg-slate-900 p-6 text-white"><p className="text-sm">Сводка будет доступна после загрузки операций</p></section>}
               {(dataStatus === "ready" || dataStatus === "cached") && <section className="mb-5 rounded-2xl bg-white p-5">
-                <h2 className="mb-1 text-lg font-bold">Взаиморасчёты</h2>
+                <h2 className="mb-1 text-lg font-bold">Рекомендуемые переводы</h2>
+                <p className="mb-3 text-xs text-slate-500">Чтобы распределить прибыль за выбранный период с учётом уже полученных доходов и оплаченных расходов.</p>
+                {recommendedTransfers.length ? (
+                  <div className="space-y-2">
+                    {recommendedTransfers.map((transfer, index) => (
+                      <div key={index} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 text-sm">
+                        <div><strong>{transfer.from}</strong><span className="mx-2 text-slate-400">→</span><strong>{transfer.to}</strong></div>
+                        <strong className="whitespace-nowrap">{formatRub(transfer.amount)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p className="text-sm text-slate-600">Дополнительные переводы не нужны.</p>}
+                <p className="mt-3 mb-5 text-xs text-amber-800">Уже сделанные переводы между участниками не учитываются: повторно не выполняйте рассчитанные переводы, если взаиморасчёты за этот период ранее проводились.</p>
+                <h2 className="mb-1 text-lg font-bold">Детали по участникам</h2>
                 <p className="mb-4 text-xs text-slate-500">Положительное сальдо — должен передать другим; отрицательное — должен получить. Переводы погашения пока не учитываются.</p>
                 {balances.map((item) => <div key={item.person} className="border-b border-slate-100 py-3 last:border-0">
                   <div className="flex justify-between"><strong>{item.person}</strong><strong className={item.difference > 0 ? "text-rose-700" : item.difference < 0 ? "text-emerald-700" : ""}>{item.difference > 0 ? "Передать " : item.difference < 0 ? "Получить " : "Расчёт "}{formatRub(Math.abs(item.difference))}</strong></div>
