@@ -154,7 +154,7 @@ export default function Home() {
       setDataStatus("ready");
       // Stored only in this tab's session. Removed on logout.
       try {
-        window.sessionStorage.setItem("finance_snapshot_supabase_v1", JSON.stringify({ token: authToken, snapshot, savedAt: Date.now() }));
+        window.sessionStorage.setItem("finance_snapshot_supabase_v2", JSON.stringify({ token: authToken, snapshot, savedAt: Date.now() }));
       } catch { /* private browsing may disallow storage */ }
     } catch (error) {
       if (seq !== refreshSequence.current) return;
@@ -174,7 +174,7 @@ export default function Home() {
     const handle = window.setTimeout(() => {
       setToken(saved);
       try {
-        const cached = JSON.parse(window.sessionStorage.getItem("finance_snapshot_supabase_v1") || "null") as {
+        const cached = JSON.parse(window.sessionStorage.getItem("finance_snapshot_supabase_v2") || "null") as {
           token?: string; snapshot?: { transactions: Transaction[]; shares: Share[] }; savedAt?: number
         } | null;
         if (cached?.token === saved && Array.isArray(cached.snapshot?.transactions) &&
@@ -185,11 +185,11 @@ export default function Home() {
           setHasSnapshot(true);
           setDataStatus("cached");
         }
-      } catch { window.sessionStorage.removeItem("finance_snapshot_supabase_v1"); }
+      } catch { window.sessionStorage.removeItem("finance_snapshot_supabase_v2"); }
       refresh(saved).catch((error) => {
         if (error instanceof Error && error.message.includes("Необходим вход")) {
           window.sessionStorage.removeItem("finance_session_supabase_v1");
-          window.sessionStorage.removeItem("finance_snapshot_supabase_v1");
+          window.sessionStorage.removeItem("finance_snapshot_supabase_v2");
           setToken(null);
           setHasSnapshot(false);
         } else {
@@ -205,7 +205,7 @@ export default function Home() {
   useEffect(() => {
     if (dataStatus !== "ready" || !token) return;
     try {
-      window.sessionStorage.setItem("finance_snapshot_supabase_v1", JSON.stringify({
+      window.sessionStorage.setItem("finance_snapshot_supabase_v2", JSON.stringify({
         token, snapshot: { transactions, shares }, savedAt: Date.now(),
       }));
     } catch { /* Storage is optional */ }
@@ -286,7 +286,7 @@ export default function Home() {
   }
   function signOut() {
     window.sessionStorage.removeItem("finance_session_supabase_v1");
-    window.sessionStorage.removeItem("finance_snapshot_supabase_v1");
+    window.sessionStorage.removeItem("finance_snapshot_supabase_v2");
     refreshSequence.current++;
     setToken(null); setTransactions([]); setHasSnapshot(false); setDataStatus("idle"); setDataError(""); setTab("entries");
   }
