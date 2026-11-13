@@ -1,7 +1,5 @@
 "use client";
 
-import { useMemo, useState } from "react";
-
 type Person = "Витя" | "Маша" | "Петя" | "Саша";
 type EntryType = "income" | "expense";
 type Entry = {
@@ -29,14 +27,7 @@ const money = (amount: number) =>
   }).format(amount);
 
 export default function Home() {
-  const [period, setPeriod] = useState<"previous" | "all">("previous");
-  const [entries] = useState<Entry[]>(examples);
-
-  const visible = useMemo(() => {
-    if (period === "all") return entries;
-    // Demo data has a fixed illustrative period until the shared API is connected.
-    return entries;
-  }, [period, entries]);
+  const visible = examples;
 
   const income = visible.filter((entry) => entry.type === "income").reduce((total, entry) => total + entry.amount, 0);
   const expenses = visible.filter((entry) => entry.type === "expense").reduce((total, entry) => total + entry.amount, 0);
@@ -58,19 +49,6 @@ export default function Home() {
         Данные не сохраняются и пока не синхронизируются между участниками.
         В следующем этапе подключим защищённый API и общую базу Cloudflare D1.
       </div>
-
-      <section className="mb-6">
-        <label htmlFor="period" className="mb-2 block text-sm font-semibold">Период</label>
-        <select
-          id="period"
-          className="w-full rounded-xl border border-slate-300 bg-white p-3 text-slate-900"
-          value={period}
-          onChange={(event) => setPeriod(event.target.value as "previous" | "all")}
-        >
-          <option value="previous">Предыдущий месяц (демо)</option>
-          <option value="all">Вся история (демо)</option>
-        </select>
-      </section>
 
       <section className="mb-6 rounded-3xl bg-slate-900 p-6 text-white">
         <p className="text-sm text-slate-300">Прибыль</p>
