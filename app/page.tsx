@@ -48,7 +48,7 @@ async function api<T>(path: string, token: string | null, method = "GET", body?:
     signal: AbortSignal.timeout(15000),
   });
   const data = (await response.json()) as T & { error?: string };
-  if (!response.ok) throw new Error(data.error || "Ошибка соединения");
+  if (!response.ok) throw new Error(`${path}: ${data.error || "Ошибка соединения"}`);
   return data;
 }
 function allocateProfit(profit: number, shares: Share[]) {
@@ -79,15 +79,22 @@ export default function Home() {
   const [shareDraft, setShareDraft] = useState<Record<Person, string>>({ "Витя": "25", "Маша": "25", "Петя": "25", "Саша": "25" });
 
   const refresh = useCallback(async (authToken: string) => {
-    const [t, s] = await Promise.all([
+    const results = await Promise.allSettled([
       api<{ transactions: Transaction[] }>("/transactions", authToken),
       api<{ shares: Share[] }>("/shares", authToken),
     ]);
-    setTransactions(t.transactions);
-    setShares(s.shares);
-    const draft = {} as Record<Person, string>;
-    for (const share of s.shares) draft[share.person] = String(share.basis_points / 100);
-    setShareDraft(draft);
+    const [entriesResult, sharesResult] = results;
+    if (entriesResult.status === "fulfilled") setTransactions(entriesResult.value.transactions);
+    if (sharesResult.status === "fulfilled") {
+      setShares(sharesResult.value.shares);
+      const draft = {} as Record<Person, string>;
+      for (const share of sharesResult.value.shares) draft[share.person] = String(share.basis_points / 100);
+      setShareDraft(draft);
+    }
+    const failures = results.flatMap((result, index) => result.status === "rejected"
+      ? [`${index === 0 ? "Операции" : "Доли"}: ${result.reason instanceof Error ? result.reason.message : "нет ответа"}`]
+      : []);
+    if (failures.length) throw new Error(failures.join("; "));
   }, []);
 
   useEffect(() => {
@@ -95,8 +102,14 @@ export default function Home() {
     const saved = window.sessionStorage.getItem("finance_session");
     if (!saved) return;
     const handle = window.setTimeout(() => {
-      refresh(saved).then(() => setToken(saved)).catch(() => {
-        window.sessionStorage.removeItem("finance_session");
+      setToken(saved);
+      refresh(saved).catch((error) => {
+        if (error instanceof Error && error.message.includes("Необходим вход")) {
+          window.sessionStorage.removeItem("finance_session");
+          setToken(null);
+        } else {
+          setMessage(error instanceof Error ? error.message : "Не удалось обновить данные");
+        }
       });
     }, 0);
     return () => window.clearTimeout(handle);
@@ -118,10 +131,13 @@ export default function Home() {
     setLoading(true); setMessage("");
     try {
       const result = await api<{ token: string }>("/login", null, "POST", { password });
-      // Do not show the finance form until initial data has finished loading.
-      await refresh(result.token);
       window.sessionStorage.setItem("finance_session", result.token);
       setToken(result.token); setPassword("");
+      try {
+        await refresh(result.token);
+      } catch (error) {
+        setMessage(`Вход выполнен, но загрузка данных не удалась: ${error instanceof Error ? error.message : "Ошибка соединения"}`);
+      }
     } catch (error) { setMessage(error instanceof Error ? error.message : "Ошибка входа"); }
     finally { setLoading(false); }
   }
