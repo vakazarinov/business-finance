@@ -17,8 +17,8 @@ type Transaction = {
 type Share = { person: Person; basis_points: number };
 type FormData = { date: string; type: EntryType; person: Person; amount: string; category: string; comment: string };
 const PEOPLE: Person[] = ["Витя", "Маша", "Петя", "Саша"];
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
-const GATEWAY_URL = "https://vzfpcwfasnqpuzezkbbh.supabase.co/functions/v1/finance-direct";
+const API_URL = "https://vzfpcwfasnqpuzezkbbh.supabase.co/functions/v1/finance-direct";
+const GATEWAY_URL = API_URL;
 const RUB = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" });
 const formatRub = (kopeks: number) => RUB.format(kopeks / 100);
 const dateToday = () => {
