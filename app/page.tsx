@@ -93,9 +93,12 @@ export default function Home() {
     if (!API_URL) return;
     const saved = window.sessionStorage.getItem("finance_session");
     if (!saved) return;
-    refresh(saved).then(() => setToken(saved)).catch(() => {
-      window.sessionStorage.removeItem("finance_session");
-    });
+    const handle = window.setTimeout(() => {
+      refresh(saved).then(() => setToken(saved)).catch(() => {
+        window.sessionStorage.removeItem("finance_session");
+      });
+    }, 0);
+    return () => window.clearTimeout(handle);
   }, [refresh]);
 
   const filtered = useMemo(() => transactions.filter((entry) => period === "all" || (entry.date >= dates.from && entry.date <= dates.to)), [transactions, period, dates]);
