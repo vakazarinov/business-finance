@@ -93,10 +93,8 @@ export default function Home() {
     if (!API_URL) return;
     const saved = window.sessionStorage.getItem("finance_session");
     if (!saved) return;
-    setToken(saved);
-    refresh(saved).catch(() => {
+    refresh(saved).then(() => setToken(saved)).catch(() => {
       window.sessionStorage.removeItem("finance_session");
-      setToken(null);
     });
   }, [refresh]);
 
