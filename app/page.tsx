@@ -293,7 +293,7 @@ export default function Home() {
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!token || loading || dataStatus !== "ready") return;
-    const amount_cents = amountToCents(form.amount);
+    const amount_cents = amountToCents(form.amount) ?? amountToCents(calculateAmount(form.amount) || "");
     if (!amount_cents) { setMessage("Укажите положительную сумму, не более двух знаков после запятой"); return; }
     setLoading(true); setMessage("");
     try {
@@ -420,14 +420,57 @@ export default function Home() {
               <h2 className="mb-4 text-lg font-bold">{editingId ? "Изменить операцию" : "Новая операция"}</h2>
               <form onSubmit={save} className="space-y-3">
                 <div className="grid grid-cols-2 gap-2">
-                  {(["income", "expense"] as const).map((type) => <button key={type} type="button" onClick={() => setForm({ ...form, type })} className={`rounded-xl border p-3 font-medium ${form.type === type ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300"}`}>{type === "income" ? "Доход" : "Расход"}</button>)}
+                  {(["income", "expense"] as const).map((type) => <button key={type} type="button" onClick={() => setForm({ ...form, type, category: type === "income" ? "Аренда" : "Уборка и расходники" })} className={`rounded-xl border p-3 font-medium ${form.type === type ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300"}`}>{type === "income" ? "Доход" : "Расход"}</button>)}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <label className="text-sm">Дата<input type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 p-3" /></label>
                   <label className="text-sm">Участник<select value={form.person} onChange={(event) => setForm({ ...form, person: event.target.value as Person })} className="mt-1 w-full rounded-xl border border-slate-300 p-3">{PEOPLE.map((person) => <option key={person}>{person}</option>)}</select></label>
                 </div>
-                <label className="block text-sm">Сумма, ₽<input required inputMode="decimal" placeholder="3500" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 p-3" /></label>
-                <label className="block text-sm">Категория<input maxLength={80} placeholder="Например, реклама" value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 p-3" /></label>
+                <div>
+                  <label htmlFor="amount" className="block text-sm">Сумма, ₽</label>
+                  <div className="mt-1 flex gap-2">
+                    <input id="amount" required inputMode="decimal" placeholder="3500 или 1200+450" value={form.amount}
+                      onChange={(event) => { setForm({ ...form, amount: event.target.value }); setCalculatorError(""); }}
+                      className="min-w-0 flex-1 rounded-xl border border-slate-300 p-3" />
+                    <button type="button" aria-label="Открыть калькулятор" aria-expanded={calculatorOpen}
+                      onClick={() => setCalculatorOpen(!calculatorOpen)}
+                      className="rounded-xl border border-slate-300 bg-slate-100 px-4 text-xl">▦</button>
+                  </div>
+                  {calculatorOpen && (
+                    <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="mb-2 text-xs text-slate-500">Можно складывать, вычитать, умножать и делить. Нажмите «=», чтобы получить сумму.</p>
+                      <div className="grid grid-cols-4 gap-2">
+                        {["7","8","9","÷","4","5","6","×","1","2","3","−","C","0",".","+"].map((key) =>
+                          <button key={key} type="button" onClick={() => calculatorKey(key)}
+                            className="rounded-lg border border-slate-200 bg-white p-3 text-lg font-semibold">{key}</button>)}
+                        <button type="button" onClick={() => calculatorKey("(")} className="rounded-lg bg-white p-3 font-semibold">(</button>
+                        <button type="button" onClick={() => calculatorKey(")")} className="rounded-lg bg-white p-3 font-semibold">)</button>
+                        <button type="button" onClick={() => calculatorKey("⌫")} className="rounded-lg bg-white p-3 font-semibold">⌫</button>
+                        <button type="button" onClick={calculateNow} className="rounded-lg bg-slate-900 p-3 font-semibold text-white">=</button>
+                      </div>
+                    </div>
+                  )}
+                  {calculatorError && <p role="alert" className="mt-1 text-xs text-rose-700">{calculatorError}</p>}
+                  {form.amount && calculateAmount(form.amount) && amountToCents(form.amount) === null && (
+                    <button type="button" onClick={calculateNow} className="mt-2 text-sm font-semibold text-blue-700 underline">
+                      Подставить результат: {calculateAmount(form.amount)} ₽
+                    </button>
+                  )}
+                </div>
+                <div>
+                  <label htmlFor="category" className="block text-sm">Категория</label>
+                  <select id="category" value={CATEGORIES.includes(form.category as typeof CATEGORIES[number]) ? form.category : "__custom"}
+                    onChange={(event) => setForm({ ...form, category: event.target.value === "__custom" ? "" : event.target.value })}
+                    className="mt-1 w-full rounded-xl border border-slate-300 p-3">
+                    {CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+                    <option value="__custom">Другая категория…</option>
+                  </select>
+                  {!CATEGORIES.includes(form.category as typeof CATEGORIES[number]) && (
+                    <input aria-label="Своя категория" maxLength={80} placeholder="Название категории"
+                      value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}
+                      className="mt-2 w-full rounded-xl border border-slate-300 p-3" />
+                  )}
+                </div>
                 <label className="block text-sm">Комментарий (необязательно)<input maxLength={500} value={form.comment} onChange={(event) => setForm({ ...form, comment: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 p-3" /></label>
                 <button type="submit" disabled={loading || dataStatus !== "ready"} className="w-full rounded-xl bg-slate-900 p-3 font-semibold text-white disabled:opacity-50">{loading ? "Сохраняем..." : dataStatus !== "ready" ? "Сначала загрузите историю" : editingId ? "Сохранить изменения" : "Добавить операцию"}</button>
                 {editingId && <button type="button" onClick={() => { setEditingId(null); setForm(initialForm()); }} className="w-full rounded-xl border p-3">Отменить редактирование</button>}
