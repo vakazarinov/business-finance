@@ -522,9 +522,9 @@ export default function Home() {
             </section>
           )}
           {tab === "entries" && <section className="rounded-2xl bg-white p-5">
-            <div className="mb-4 flex items-center justify-between gap-2"><h2 className="text-lg font-bold">Последние операции</h2><span className="text-xs text-slate-500">До 10</span></div>
+            <div className="mb-4 flex items-center justify-between gap-2"><h2 className="text-lg font-bold">История операций</h2><span className="text-xs text-slate-500">{transactions.length} записей</span></div>
             {!hasSnapshot ? <p className="text-sm text-amber-800">{dataStatus === "loading" ? "Загружаем операции из базы..." : "История сейчас недоступна. Записи в базе не удалены; используйте «Повторить загрузку»."}</p> : transactions.length === 0 ? <p className="text-sm text-slate-500">В базе пока нет операций. Добавь первую во вкладке «Операции».</p> :
-              transactions.slice(0, 10).map((entry) => <div key={entry.id} className="border-b border-slate-100 py-3 last:border-0">
+              transactions.map((entry) => <div key={entry.id} className="border-b border-slate-100 py-3 last:border-0">
                 <div className="flex justify-between gap-3"><div><strong>{entry.category || (entry.type === "income" ? "Доход" : "Расход")}</strong><p className="text-xs text-slate-500">{entry.person} · {entry.date}</p>{entry.comment && <p className="text-xs text-slate-500">{entry.comment}</p>}</div><strong className={entry.type === "income" ? "text-emerald-700" : ""}>{entry.type === "income" ? "+" : "−"}{formatRub(entry.amount_cents)}</strong></div>
                 <div className="mt-2 flex gap-4 text-sm"><button disabled={loading || dataStatus !== "ready"} onClick={() => edit(entry)} className="text-blue-700 disabled:opacity-50">Изменить</button><button disabled={loading || dataStatus !== "ready"} onClick={() => remove(entry)} className="text-rose-700">Удалить</button></div>
               </div>)}
