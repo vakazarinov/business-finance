@@ -41,6 +41,52 @@ function amountToCents(input: string): number | null {
   const value = Number(whole) * 100 + Number(cents.padEnd(2, "0"));
   return Number.isSafeInteger(value) && value > 0 ? value : null;
 }
+// A small arithmetic parser, without eval or dynamic code execution.
+// Supports decimal amounts, parentheses and normal operator precedence.
+function calculateAmount(expression: string): string | null {
+  const input = expression.replace(/,/g, ".").replace(/×/g, "*").replace(/÷/g, "/").replace(/−/g, "-").replace(/\s/g, "");
+  if (!input || input.length > 100 || !/^[\d.+\-*/()]+$/.test(input)) return null;
+  const tokens = input.match(/(?:\d+(?:\.\d*)?|\.\d+)|[()+\-*/]/g);
+  if (!tokens || tokens.join("") !== input) return null;
+  let pos = 0;
+  function primary(): number {
+    const t = tokens![pos++];
+    if (t === "+") return primary();
+    if (t === "-") return -primary();
+    if (t === "(") {
+      const n = sum();
+      if (tokens![pos++] !== ")") throw new Error("Unclosed bracket");
+      return n;
+    }
+    if (!t || !/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(t)) throw new Error("Invalid number");
+    return Number(t);
+  }
+  function product(): number {
+    let n = primary();
+    while (tokens![pos] === "*" || tokens![pos] === "/") {
+      const op = tokens![pos++];
+      const other = primary();
+      n = op === "*" ? n * other : n / other;
+    }
+    return n;
+  }
+  function sum(): number {
+    let n = product();
+    while (tokens![pos] === "+" || tokens![pos] === "-") {
+      const op = tokens![pos++];
+      n += (op === "+" ? 1 : -1) * product();
+    }
+    return n;
+  }
+  try {
+    const value = sum();
+    if (pos !== tokens.length || !Number.isFinite(value) || value <= 0 || value > 1_000_000_000) return null;
+    const cents = Math.round((value + Number.EPSILON * Math.abs(value)) * 100);
+    if (!Number.isSafeInteger(cents) || cents <= 0) return null;
+    return (cents / 100).toFixed(2);
+  } catch { return null; }
+}
+
 // RPC uses one TLS-protected, text/plain request. No cross-origin preflight is required.
 async function rpc<T>(token: string, action: string, payload: Record<string, unknown> = {}): Promise<T> {
   const response = await fetch(GATEWAY_URL, {
@@ -196,6 +242,25 @@ export default function Home() {
     }
     return result;
   })();
+
+  function calculateNow() {
+    const result = calculateAmount(form.amount);
+    if (!result) {
+      setCalculatorError("Проверьте выражение: допускаются числа, скобки и + − × ÷");
+      return;
+    }
+    setForm((previous) => ({ ...previous, amount: result }));
+    setCalculatorError("");
+    setCalculatorOpen(false);
+  }
+  function calculatorKey(key: string) {
+    setCalculatorError("");
+    if (key === "=") { calculateNow(); return; }
+    setForm((previous) => ({
+      ...previous,
+      amount: key === "C" ? "" : key === "⌫" ? previous.amount.slice(0, -1) : previous.amount + key,
+    }));
+  }
 
   async function signIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
