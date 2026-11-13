@@ -34,7 +34,7 @@ function previousMonth() {
 }
 function amountToCents(input: string): number | null {
   const clean = input.trim().replace(",", ".");
-  if (!/^(?:\\d{1,9})(?:\\.\\d{1,2})?$/.test(clean)) return null;
+  if (!/^(?:\d{1,9})(?:\.\d{1,2})?$/.test(clean)) return null;
   const [whole, cents = ""] = clean.split(".");
   const value = Number(whole) * 100 + Number(cents.padEnd(2, "0"));
   return Number.isSafeInteger(value) && value > 0 ? value : null;
@@ -158,7 +158,7 @@ export default function Home() {
   async function saveShares() {
     if (!token) return;
     const updated = PEOPLE.map((person) => ({ person, basis_points: Math.round(Number(shareDraft[person]) * 100) }));
-    if (updated.some((share) => !Number.isFinite(share.basis_points) || share.basis_points < 0 || share.basis_points > 10000 || !/^\\d+(?:[.,]\\d{1,2})?$/.test(shareDraft[share.person].replace(",", "."))) || updated.reduce((sum, share) => sum + share.basis_points, 0) !== 10000) {
+    if (updated.some((share) => !Number.isFinite(share.basis_points) || share.basis_points < 0 || share.basis_points > 10000 || !/^\d+(?:[.,]\d{1,2})?$/.test(shareDraft[share.person].replace(",", "."))) || updated.reduce((sum, share) => sum + share.basis_points, 0) !== 10000) {
       setMessage("Укажите доли с точностью до 0,01%, в сумме ровно 100%"); return;
     }
     setLoading(true); setMessage("");
