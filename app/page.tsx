@@ -18,7 +18,7 @@ type Share = { person: Person; basis_points: number };
 type FormData = { date: string; type: EntryType; person: Person; amount: string; category: string; comment: string };
 const PEOPLE: Person[] = ["Витя", "Маша", "Петя", "Саша"];
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
-const GATEWAY_URL = "https://vzfpcwfasnqpuzezkbbh.supabase.co/functions/v1/finance-gateway";
+const GATEWAY_URL = API_URL + "/rpc";
 const RUB = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" });
 const formatRub = (kopeks: number) => RUB.format(kopeks / 100);
 const dateToday = () => {
@@ -174,7 +174,7 @@ export default function Home() {
     event.preventDefault();
     setLoading(true); setMessage("");
     try {
-      const result = await fetch(GATEWAY_URL, {
+      const result = await fetch(API_URL + "/login", {
         method: "POST", headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({ action: "login", password }), signal: AbortSignal.timeout(5000),
       }).then(async (response) => {
