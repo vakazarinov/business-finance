@@ -370,6 +370,7 @@ export default function Home() {
               </div>)}
           </section>
           <p className="mt-6 text-center text-xs text-slate-500">Финансовые данные хранятся в Cloudflare D1, а не на GitHub Pages.</p>
+          <p className="mt-3 text-center text-sm"><a className="text-blue-700 underline" href="/business-finance/diagnostics/">Проверить скорость соединения</a></p>
         </>
       )}
     </main>
