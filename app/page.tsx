@@ -133,6 +133,7 @@ export default function Home() {
   const [shareMode, setShareMode] = useState<"equal" | "custom">("equal");
   const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [calculatorError, setCalculatorError] = useState("");
+  const [showAllTransactions, setShowAllTransactions] = useState(false);
   const [shareDraft, setShareDraft] = useState<Record<Person, string>>({ "Саша": "25", "Наташа": "25", "Витя": "25", "Денис": "25" });
 
   const refresh = useCallback(async (authToken: string) => {
@@ -212,6 +213,8 @@ export default function Home() {
   }, [token, transactions, shares, dataStatus]);
 
   const filtered = useMemo(() => transactions.filter((entry) => period === "all" || (entry.date >= dates.from && entry.date <= dates.to)), [transactions, period, dates]);
+  const visibleTransactions = showAllTransactions ? transactions : transactions.slice(0, 5);
+  const hiddenTransactionsCount = Math.max(0, transactions.length - 5);
   const totalIncome = filtered.filter((entry) => entry.type === "income").reduce((sum, entry) => sum + entry.amount_cents, 0);
   const totalExpenses = filtered.filter((entry) => entry.type === "expense").reduce((sum, entry) => sum + entry.amount_cents, 0);
   const profit = totalIncome - totalExpenses;
@@ -347,10 +350,13 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-2xl px-4 pb-16 pt-7 sm:px-6">
-      <header className="mb-6 flex items-center justify-between gap-3">
-        <div><p className="text-sm text-slate-500">Семейный проект</p><h1 className="text-3xl font-bold tracking-tight">Business Finance</h1></div>
-        {token && <button onClick={signOut} className="rounded-xl border border-slate-300 px-3 py-2 text-sm">Выйти</button>}
+    <main className="mx-auto min-h-screen max-w-2xl px-3 pb-10 pt-5 text-slate-900 sm:px-6 sm:pt-8">
+      <header className="mb-4 flex items-center justify-between gap-3 sm:mb-6">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-slate-500 sm:text-sm">Учёт арендного бизнеса</p>
+          <h1 className="mt-0.5 text-[clamp(1.5rem,7vw,2rem)] font-bold leading-tight tracking-tight text-slate-900">Business Finance</h1>
+        </div>
+        {token && <button type="button" onClick={signOut} className="shrink-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700">Выйти</button>}
       </header>
 
       {!API_URL ? (
@@ -359,19 +365,23 @@ export default function Home() {
           <p className="mt-2 text-sm text-amber-900">Интерфейс опубликован, но API Cloudflare ещё не настроен. Для безопасной работы с общей базой нужно указать NEXT_PUBLIC_API_URL при сборке GitHub Pages.</p>
         </div>
       ) : !token ? (
-        <form onSubmit={signIn} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <form onSubmit={signIn} className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-sm sm:p-6">
           <h2 className="mb-2 text-xl font-bold">Вход для семьи</h2>
           <p className="mb-4 text-sm text-slate-500">Один общий пароль для новой базы Supabase. Пароль не хранится в коде сайта.</p>
           <label htmlFor="password" className="mb-2 block text-sm font-medium">Пароль</label>
-          <input id="password" type="password" required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mb-4 w-full rounded-xl border border-slate-300 p-3" />
+          <input id="password" type="password" required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mb-4 h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-900" />
           <button type="submit" disabled={loading} className="w-full rounded-xl bg-slate-900 p-3 font-semibold text-white disabled:opacity-50">{loading ? "Проверяем..." : "Войти"}</button>
           {message && <p role="alert" className="mt-3 text-sm text-rose-700">{message}</p>}
         </form>
       ) : (
         <>
-          <nav aria-label="Разделы" className="mb-5 grid grid-cols-2 gap-2">
+          <nav aria-label="Разделы" className="mb-4 grid grid-cols-2 gap-1 rounded-2xl bg-slate-200/70 p-1">
             {([{ key: "entries", title: "Операции" }, { key: "summary", title: "Сводка" }] as const).map((item) => (
-              <button key={item.key} onClick={() => { setTab(item.key); setMessage(""); }} className={`rounded-xl px-2 py-3 text-sm font-semibold ${tab === item.key ? "bg-slate-900 text-white" : "bg-white text-slate-700"}`}>{item.title}</button>
+              <button key={item.key} type="button" onClick={() => { setTab(item.key); setMessage(""); }}
+                aria-current={tab === item.key ? "page" : undefined}
+                className={`min-h-11 rounded-xl px-2 py-2.5 text-sm font-semibold transition-colors sm:text-base ${tab === item.key ? "bg-slate-900 text-white shadow-sm" : "bg-transparent text-slate-700"}`}>
+                {item.title}
+              </button>
             ))}
           </nav>
           {dataStatus === "loading" && <p role="status" className="mb-4 rounded-xl bg-blue-50 p-3 text-sm text-blue-900">Загружаем финансовые данные из базы. Ранее сохранённые операции не удалены.</p>}
@@ -460,25 +470,33 @@ export default function Home() {
             </>
           )}
           {tab === "entries" && (
-            <section className="mb-5 rounded-2xl bg-white p-5">
-              <h2 className="mb-4 text-lg font-bold">{editingId ? "Изменить операцию" : "Новая операция"}</h2>
-              <form onSubmit={save} className="space-y-3">
+            <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-sm sm:p-5">
+              <h2 className="mb-4 text-xl font-bold text-slate-900">{editingId ? "Изменить операцию" : "Новая операция"}</h2>
+              <form onSubmit={save} className="space-y-4">
                 <div className="grid grid-cols-2 gap-2">
-                  {(["income", "expense"] as const).map((type) => <button key={type} type="button" onClick={() => setForm({ ...form, type, category: type === "income" ? "Аренда" : "Уборка и расходники" })} className={`rounded-xl border p-3 font-medium ${form.type === type ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300"}`}>{type === "income" ? "Доход" : "Расход"}</button>)}
+                  {(["income", "expense"] as const).map((type) => <button key={type} type="button" onClick={() => setForm({ ...form, type, category: type === "income" ? "Аренда" : "Уборка и расходники" })} className={`min-h-11 rounded-xl border px-3 py-2.5 text-base font-semibold ${form.type === type ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white text-slate-700"}`}>{type === "income" ? "Доход" : "Расход"}</button>)}
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="text-sm">Дата<input type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 p-3" /></label>
-                  <label className="text-sm">Участник<select value={form.person} onChange={(event) => setForm({ ...form, person: event.target.value as Person })} className="mt-1 w-full rounded-xl border border-slate-300 p-3">{PEOPLE.map((person) => <option key={person}>{person}</option>)}</select></label>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <label className="block min-w-0 text-sm font-medium text-slate-700">Дата
+                    <input type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })}
+                      className="mt-1 block h-12 w-full min-w-0 max-w-full rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-900" />
+                  </label>
+                  <label className="block min-w-0 text-sm font-medium text-slate-700">Участник
+                    <select value={form.person} onChange={(event) => setForm({ ...form, person: event.target.value as Person })}
+                      className="mt-1 block h-12 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-900">
+                      {PEOPLE.map((person) => <option key={person} value={person}>{person}</option>)}
+                    </select>
+                  </label>
                 </div>
                 <div>
-                  <label htmlFor="amount" className="block text-sm">Сумма, ₽</label>
+                  <label htmlFor="amount" className="block text-sm font-medium text-slate-700">Сумма, ₽</label>
                   <div className="mt-1 flex gap-2">
                     <input id="amount" required inputMode="decimal" placeholder="3500 или 1200+450" value={form.amount}
                       onChange={(event) => { setForm({ ...form, amount: event.target.value }); setCalculatorError(""); }}
-                      className="min-w-0 flex-1 rounded-xl border border-slate-300 p-3" />
+                      className="h-12 min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-900 placeholder:text-slate-400" />
                     <button type="button" aria-label="Открыть калькулятор" aria-expanded={calculatorOpen}
                       onClick={() => setCalculatorOpen(!calculatorOpen)}
-                      className="rounded-xl border border-slate-300 bg-slate-100 px-4 text-xl">▦</button>
+                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-slate-100 text-xl text-slate-800">▦</button>
                   </div>
                   {calculatorOpen && (
                     <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -486,11 +504,11 @@ export default function Home() {
                       <div className="grid grid-cols-4 gap-2">
                         {["7","8","9","÷","4","5","6","×","1","2","3","−","C","0",".","+"].map((key) =>
                           <button key={key} type="button" onClick={() => calculatorKey(key)}
-                            className="rounded-lg border border-slate-200 bg-white p-3 text-lg font-semibold">{key}</button>)}
-                        <button type="button" onClick={() => calculatorKey("(")} className="rounded-lg bg-white p-3 font-semibold">(</button>
+                            className="h-11 rounded-xl border border-slate-200 bg-white text-base font-semibold text-slate-900">{key}</button>)}
+                        <button type="button" onClick={() => calculatorKey("(")} className="h-11 rounded-xl border border-slate-200 bg-white font-semibold text-slate-900">(</button>
                         <button type="button" onClick={() => calculatorKey(")")} className="rounded-lg bg-white p-3 font-semibold">)</button>
                         <button type="button" onClick={() => calculatorKey("⌫")} className="rounded-lg bg-white p-3 font-semibold">⌫</button>
-                        <button type="button" onClick={calculateNow} className="rounded-lg bg-slate-900 p-3 font-semibold text-white">=</button>
+                        <button type="button" onClick={calculateNow} className="h-11 rounded-xl bg-slate-900 font-semibold text-white">=</button>
                       </div>
                     </div>
                   )}
@@ -502,21 +520,26 @@ export default function Home() {
                   )}
                 </div>
                 <div>
-                  <label htmlFor="category" className="block text-sm">Категория</label>
+                  <label htmlFor="category" className="block text-sm font-medium text-slate-700">Категория</label>
                   <select id="category" value={CATEGORIES.includes(form.category as typeof CATEGORIES[number]) ? form.category : "__custom"}
                     onChange={(event) => setForm({ ...form, category: event.target.value === "__custom" ? "" : event.target.value })}
-                    className="mt-1 w-full rounded-xl border border-slate-300 p-3">
+                    className="mt-1 h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-900">
                     {CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
                     <option value="__custom">Другая категория…</option>
                   </select>
                   {!CATEGORIES.includes(form.category as typeof CATEGORIES[number]) && (
                     <input aria-label="Своя категория" maxLength={80} placeholder="Название категории"
                       value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}
-                      className="mt-2 w-full rounded-xl border border-slate-300 p-3" />
+                      className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-900" />
                   )}
                 </div>
-                <label className="block text-sm">Комментарий (необязательно)<input maxLength={500} value={form.comment} onChange={(event) => setForm({ ...form, comment: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 p-3" /></label>
-                <button type="submit" disabled={loading || dataStatus !== "ready"} className="w-full rounded-xl bg-slate-900 p-3 font-semibold text-white disabled:opacity-50">{loading ? "Сохраняем..." : dataStatus !== "ready" ? "Сначала загрузите историю" : editingId ? "Сохранить изменения" : "Добавить операцию"}</button>
+                <label className="block text-sm font-medium text-slate-700">Комментарий (необязательно)
+                  <textarea rows={2} maxLength={500} value={form.comment}
+                    onChange={(event) => setForm({ ...form, comment: event.target.value })}
+                    placeholder="Например, квитанция за квартиру 408"
+                    className="mt-1 block w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-3 text-base text-slate-900 placeholder:text-slate-400" />
+                </label>
+                <button type="submit" disabled={loading || dataStatus !== "ready"} className="min-h-12 w-full rounded-xl bg-slate-900 px-4 py-3 text-base font-semibold text-white disabled:opacity-50">{loading ? "Сохраняем..." : dataStatus !== "ready" ? "Сначала загрузите историю" : editingId ? "Сохранить изменения" : "Добавить операцию"}</button>
                 {editingId && <button type="button" onClick={() => { setEditingId(null); setForm(initialForm()); }} className="w-full rounded-xl border p-3">Отменить редактирование</button>}
               </form>
             </section>
