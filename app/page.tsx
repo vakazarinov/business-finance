@@ -159,6 +159,17 @@ export default function Home() {
     return () => window.clearTimeout(handle);
   }, [refresh]);
 
+  // Keep the same-tab snapshot up to date after confirmed create/edit/delete operations.
+  // Never persist an unconfirmed or failed server response.
+  useEffect(() => {
+    if (dataStatus !== "ready" || !token) return;
+    try {
+      window.sessionStorage.setItem("finance_snapshot", JSON.stringify({
+        token, snapshot: { transactions, shares }, savedAt: Date.now(),
+      }));
+    } catch { /* Storage is optional */ }
+  }, [token, transactions, shares, dataStatus]);
+
   const filtered = useMemo(() => transactions.filter((entry) => period === "all" || (entry.date >= dates.from && entry.date <= dates.to)), [transactions, period, dates]);
   const totalIncome = filtered.filter((entry) => entry.type === "income").reduce((sum, entry) => sum + entry.amount_cents, 0);
   const totalExpenses = filtered.filter((entry) => entry.type === "expense").reduce((sum, entry) => sum + entry.amount_cents, 0);
