@@ -30,7 +30,7 @@ jobs:
       - name: Build static site
         run: npm run build
         env:
-          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_API_URL: https://business-finance-api.stayinspb.workers.dev
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
