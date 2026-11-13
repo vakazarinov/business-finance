@@ -2,11 +2,11 @@ name = "business-finance-api"
 main = "src/index.js"
 compatibility_date = "2026-11-01"
 
-# After creating a D1 database, paste the ID returned by Cloudflare.
+# Cloudflare D1 database binding for Business Finance.
 [[d1_databases]]
 binding = "DB"
 database_name = "business-finance"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "b93b9b4a-d452-4b8b-a25a-3caeca19b899"
 
 [vars]
 ALLOWED_ORIGIN = "https://vakazarinov.github.io"
