@@ -65,6 +65,57 @@ async function rpc<T>(token: string, action: string, payload: Record<string, unk
   return data;
 }
 
+// Read-only hedged requests: a stalled network connection cannot hold up a faster one.
+// The total deadline is five seconds, including staggered starts.
+async function fastSnapshot<T>(token: string): Promise<T> {
+  const controllers = [new AbortController(), new AbortController(), new AbortController()];
+  const scheduled: ReturnType<typeof setTimeout>[] = [];
+  const envelope = JSON.stringify({ token, action: "snapshot" });
+  const request = (index: number, delay: number) => new Promise<T>((resolve, reject) => {
+    scheduled[index] = setTimeout(async () => {
+      try {
+        const response = await fetch(API_URL + "/rpc", {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: envelope,
+          cache: "no-store",
+          signal: controllers[index].signal,
+        });
+        const result = (await response.json()) as T & { error?: string };
+        if (!response.ok) throw new Error(result.error || "Ошибка сервера");
+        resolve(result);
+      } catch (error) {
+        reject(error);
+      }
+    }, delay);
+  });
+
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const attempts = [request(0, 0), request(1, 300), request(2, 900)];
+    const limit = new Promise<never>((_, reject) => {
+      deadline = setTimeout(() => reject(new Error("Не удалось загрузить данные за 5 секунд")), 5000);
+    });
+    return await Promise.race([
+      Promise.any(attempts).catch((error: unknown) => {
+        if (error instanceof AggregateError) {
+          const failures = error.errors as unknown[];
+          const authFailure = failures.find((item) => item instanceof Error && item.message.includes("Необходим вход"));
+          if (authFailure) throw authFailure;
+          const other = failures.find((item) => item instanceof Error && item.name !== "AbortError");
+          if (other) throw other;
+        }
+        throw error;
+      }),
+      limit,
+    ]);
+  } finally {
+    if (deadline) clearTimeout(deadline);
+    for (const timer of scheduled) if (timer) clearTimeout(timer);
+    for (const controller of controllers) controller.abort();
+  }
+}
+
 function allocateProfit(profit: number, shares: Share[]) {
   // Allocate integer kopeks exactly; the last participant receives the rounding remainder.
   let allocated = 0;
@@ -101,7 +152,7 @@ export default function Home() {
     setDataStatus((status) => status === "cached" || status === "ready" ? "cached" : "loading");
     setDataError("");
     try {
-      const snapshot = await rpc<{ transactions: Transaction[]; shares: Share[] }>(authToken, "snapshot");
+      const snapshot = await fastSnapshot<{ transactions: Transaction[]; shares: Share[] }>(authToken);
       if (seq !== refreshSequence.current) return;
       if (!Array.isArray(snapshot.transactions) || !Array.isArray(snapshot.shares) || snapshot.shares.length !== 4) {
         throw new Error("Сервер вернул неполные финансовые данные");
