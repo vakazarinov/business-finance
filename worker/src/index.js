@@ -6,7 +6,7 @@ const textEncoder = new TextEncoder();
 function b64url(bytes) {
   let binary = "";
   for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/g, "");
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 function fromB64url(value) {
   const raw = atob(value.replace(/-/g, "+").replace(/_/g, "/"));
@@ -59,7 +59,7 @@ function response(data, status, env, origin) {
   return new Response(JSON.stringify(data), { status, headers: headers(env, origin) });
 }
 function validDate(date) {
-  if (typeof date !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) return false;
+  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
   const parsed = new Date(date + "T00:00:00Z");
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(date);
 }
@@ -108,7 +108,7 @@ export default {
     if (origin && origin !== env.ALLOWED_ORIGIN) return response({ error: "Недопустимый источник запроса" }, 403, env, null);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: headers(env, origin) });
     const url = new URL(request.url);
-    const path = url.pathname.replace(/\\/$/, "") || "/";
+    const path = url.pathname.replace(/\/$/, "") || "/";
     if (path === "/health" && request.method === "GET") return response({ ok: true }, 200, env, origin);
     try {
       if (path === "/login" && request.method === "POST") return await login(request, env, origin);
@@ -127,7 +127,7 @@ export default {
           .bind(id, body.date, body.type, body.person, body.amount_cents, body.category.trim(), body.comment.trim()).run();
         return response({ id }, 201, env, origin);
       }
-      const match = path.match(/^\\/transactions\\/([a-f0-9-]{36})$/i);
+      const match = path.match(/^\/transactions\/([a-f0-9-]{36})$/i);
       if (match && request.method === "PATCH") {
         const body = await readJson(request);
         const error = validateEntry(body);
