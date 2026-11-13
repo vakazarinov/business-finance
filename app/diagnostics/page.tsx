@@ -28,6 +28,7 @@ export default function Diagnostics() {
       { target: "GitHub Pages", url: window.location.origin + "/business-finance/" },
       { target: "Cloudflare Worker", url: API + "/health" },
       { target: "Supabase Edge", url: "https://vzfpcwfasnqpuzezkbbh.supabase.co/functions/v1/network-check" },
+      { target: "Cloudflare через Supabase", url: "https://vzfpcwfasnqpuzezkbbh.supabase.co/functions/v1/cloudflare-route-check" },
     ];
     for (let i = 1; i <= ROUNDS; i++) {
       const batch = await Promise.all(endpoints.map(async ({ target, url }) => {
@@ -58,12 +59,14 @@ export default function Diagnostics() {
   const page = summarize(results, "GitHub Pages");
   const worker = summarize(results, "Cloudflare Worker");
   const supabase = summarize(results, "Supabase Edge");
+  const proxy = summarize(results, "Cloudflare через Supabase");
   const report = [
     "Business Finance - проверка соединения",
     "Дата: " + new Date().toISOString(),
     "GitHub Pages: " + page.success + "/" + page.total + " успешно, медиана " + (page.median ?? "н/д") + " мс, максимум " + (page.maximum ?? "н/д") + " мс",
     "Cloudflare Worker: " + worker.success + "/" + worker.total + " успешно, медиана " + (worker.median ?? "н/д") + " мс, максимум " + (worker.maximum ?? "н/д") + " мс",
     "Supabase Edge: " + supabase.success + "/" + supabase.total + " успешно, медиана " + (supabase.median ?? "н/д") + " мс, максимум " + (supabase.maximum ?? "н/д") + " мс",
+    "Cloudflare через Supabase: " + proxy.success + "/" + proxy.total + " успешно, медиана " + (proxy.median ?? "н/д") + " мс, максимум " + (proxy.maximum ?? "н/д") + " мс",
     ...results.map((r) => r.target + " #" + r.run + ": " + (r.status ?? r.error) + " - " + r.milliseconds + " мс"),
   ].join("\n");
 
@@ -72,13 +75,13 @@ export default function Diagnostics() {
       <a className="text-sm underline" href="/business-finance/">← Вернуться в Business Finance</a>
       <h1 className="mt-5 text-2xl font-bold">Проверка соединения</h1>
       <p className="mt-2 text-sm text-slate-600">
-        Сравниваем GitHub Pages, Cloudflare Worker и Supabase Edge. Пароль, финансовые записи и токен авторизации не используются.
+        Сравниваем прямой маршрут Cloudflare и доступ к нему через Supabase. Ни пароли, ни финансовые данные не используются. Пароль, финансовые записи и токен авторизации не используются.
       </p>
       <p className="mt-4 rounded-xl bg-slate-100 p-3 text-sm" role="status">
         {running ? "Выполняем 10 серий измерений..." : finished ? "Проверка завершена" : "Подготовка проверки..."}
       </p>
-      <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {[{ title: "GitHub Pages", data: page }, { title: "Cloudflare Worker", data: worker }, { title: "Supabase Edge", data: supabase }].map(({ title, data }) => (
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {[{ title: "GitHub Pages", data: page }, { title: "Cloudflare Worker", data: worker }, { title: "Supabase Edge", data: supabase }, { title: "Cloudflare через Supabase", data: proxy }].map(({ title, data }) => (
           <section className="rounded-xl border border-slate-200 bg-white p-4" key={title}>
             <h2 className="font-semibold">{title}</h2>
             <p className="mt-2 text-2xl font-bold">{data.median === null ? "—" : (data.median / 1000).toFixed(2) + " с"}</p>
