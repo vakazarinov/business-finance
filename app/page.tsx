@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Person = "Витя" | "Маша" | "Петя" | "Саша";
 type EntryType = "income" | "expense";
@@ -82,7 +82,9 @@ export default function Home() {
   const [token, setToken] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [dataStatus, setDataStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [dataStatus, setDataStatus] = useState<"idle" | "loading" | "cached" | "ready" | "error">("idle");
+  const refreshSequence = useRef(0);
+  const [hasSnapshot, setHasSnapshot] = useState(false);
   const [dataError, setDataError] = useState("");
   const [message, setMessage] = useState("");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -95,20 +97,31 @@ export default function Home() {
   const [shareDraft, setShareDraft] = useState<Record<Person, string>>({ "Витя": "25", "Маша": "25", "Петя": "25", "Саша": "25" });
 
   const refresh = useCallback(async (authToken: string) => {
-    setDataStatus("loading");
+    const seq = ++refreshSequence.current;
+    setDataStatus((status) => status === "cached" || status === "ready" ? "cached" : "loading");
     setDataError("");
     try {
       const snapshot = await rpc<{ transactions: Transaction[]; shares: Share[] }>(authToken, "snapshot");
+      if (seq !== refreshSequence.current) return;
+      if (!Array.isArray(snapshot.transactions) || !Array.isArray(snapshot.shares) || snapshot.shares.length !== 4) {
+        throw new Error("Сервер вернул неполные финансовые данные");
+      }
       setTransactions(snapshot.transactions);
       setShares(snapshot.shares);
+      setHasSnapshot(true);
       const draft = {} as Record<Person, string>;
       for (const share of snapshot.shares) draft[share.person] = String(share.basis_points / 100);
       setShareDraft(draft);
       setDataStatus("ready");
+      // Stored only in this tab's session. Removed on logout.
+      try {
+        window.sessionStorage.setItem("finance_snapshot", JSON.stringify({ token: authToken, snapshot, savedAt: Date.now() }));
+      } catch { /* private browsing may disallow storage */ }
     } catch (error) {
-      setDataStatus("error");
+      if (seq !== refreshSequence.current) return;
       const detail = error instanceof Error ? error.message : "Нет ответа сервера";
       setDataError(detail);
+      setDataStatus((status) => status === "cached" ? "cached" : "error");
       throw error;
     }
   }, []);
@@ -119,10 +132,25 @@ export default function Home() {
     if (!saved) return;
     const handle = window.setTimeout(() => {
       setToken(saved);
+      try {
+        const cached = JSON.parse(window.sessionStorage.getItem("finance_snapshot") || "null") as {
+          token?: string; snapshot?: { transactions: Transaction[]; shares: Share[] }; savedAt?: number
+        } | null;
+        if (cached?.token === saved && Array.isArray(cached.snapshot?.transactions) &&
+            Array.isArray(cached.snapshot?.shares) && typeof cached.savedAt === "number" &&
+            Date.now() - cached.savedAt < 4 * 60 * 60 * 1000) {
+          setTransactions(cached.snapshot.transactions);
+          setShares(cached.snapshot.shares);
+          setHasSnapshot(true);
+          setDataStatus("cached");
+        }
+      } catch { window.sessionStorage.removeItem("finance_snapshot"); }
       refresh(saved).catch((error) => {
         if (error instanceof Error && error.message.includes("Необходим вход")) {
           window.sessionStorage.removeItem("finance_session");
+          window.sessionStorage.removeItem("finance_snapshot");
           setToken(null);
+          setHasSnapshot(false);
         } else {
           setMessage(error instanceof Error ? error.message : "Не удалось обновить данные");
         }
@@ -166,7 +194,9 @@ export default function Home() {
   }
   function signOut() {
     window.sessionStorage.removeItem("finance_session");
-    setToken(null); setTransactions([]); setDataStatus("idle"); setDataError(""); setTab("summary");
+    window.sessionStorage.removeItem("finance_snapshot");
+    refreshSequence.current++;
+    setToken(null); setTransactions([]); setHasSnapshot(false); setDataStatus("idle"); setDataError(""); setTab("summary");
   }
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -253,6 +283,11 @@ export default function Home() {
             ))}
           </nav>
           {dataStatus === "loading" && <p role="status" className="mb-4 rounded-xl bg-blue-50 p-3 text-sm text-blue-900">Загружаем финансовые данные из базы. Ранее сохранённые операции не удалены.</p>}
+          {dataStatus === "cached" && <div role="status" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+            Показана последняя сохранённая копия данных этой вкладки. Проверка актуальности через сервер ещё не завершена. Изменения временно недоступны.
+            {dataError && <p className="mt-2">Связь с сервером: {dataError}</p>}
+            <button type="button" disabled={loading} onClick={() => token && refresh(token).catch(() => {})} className="mt-2 rounded-lg bg-slate-900 px-3 py-2 font-semibold text-white">Повторить проверку</button>
+          </div>
           {dataStatus === "error" && <div role="alert" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
             <p className="font-semibold">Не удалось загрузить историю. Это не означает, что записи удалены.</p>
             <p className="mt-1 break-words">{dataError}</p>
@@ -271,14 +306,14 @@ export default function Home() {
                   <label className="text-xs">По<input aria-label="По дату" type="date" value={dates.to} onChange={(event) => setDates({ ...dates, to: event.target.value })} className="mt-1 w-full rounded-xl border p-2" /></label>
                 </div>}
               </section>
-              {dataStatus === "ready" ? <section className="mb-5 rounded-3xl bg-slate-900 p-6 text-white">
+              {(dataStatus === "ready" || dataStatus === "cached") ? <section className="mb-5 rounded-3xl bg-slate-900 p-6 text-white">
                 <p className="text-sm text-slate-300">Прибыль</p><p className="mt-1 text-4xl font-bold">{formatRub(profit)}</p>
                 <div className="mt-5 grid grid-cols-2 gap-4">
                   <div><p className="text-xs text-slate-300">Доходы</p><p className="font-semibold">{formatRub(totalIncome)}</p></div>
                   <div><p className="text-xs text-slate-300">Расходы</p><p className="font-semibold">{formatRub(totalExpenses)}</p></div>
                 </div>
               </section> : <section className="mb-5 rounded-3xl bg-slate-900 p-6 text-white"><p className="text-sm">Сводка будет доступна после загрузки операций</p></section>}
-              {dataStatus === "ready" && <section className="mb-5 rounded-2xl bg-white p-5">
+              {(dataStatus === "ready" || dataStatus === "cached") && <section className="mb-5 rounded-2xl bg-white p-5">
                 <h2 className="mb-1 text-lg font-bold">Взаиморасчёты</h2>
                 <p className="mb-4 text-xs text-slate-500">Положительное сальдо — должен передать другим; отрицательное — должен получить. Переводы погашения пока не учитываются.</p>
                 {balances.map((item) => <div key={item.person} className="border-b border-slate-100 py-3 last:border-0">
@@ -317,7 +352,7 @@ export default function Home() {
           )}
           <section className="rounded-2xl bg-white p-5">
             <div className="mb-4 flex items-center justify-between gap-2"><h2 className="text-lg font-bold">Последние операции</h2><span className="text-xs text-slate-500">До 10</span></div>
-            {dataStatus !== "ready" ? <p className="text-sm text-amber-800">{dataStatus === "loading" ? "Загружаем операции из базы..." : "История сейчас недоступна. Записи в базе не удалены; используйте «Повторить загрузку»."}</p> : transactions.length === 0 ? <p className="text-sm text-slate-500">В базе пока нет операций. Добавь первую во вкладке «Операции».</p> :
+            {!hasSnapshot ? <p className="text-sm text-amber-800">{dataStatus === "loading" ? "Загружаем операции из базы..." : "История сейчас недоступна. Записи в базе не удалены; используйте «Повторить загрузку»."}</p> : transactions.length === 0 ? <p className="text-sm text-slate-500">В базе пока нет операций. Добавь первую во вкладке «Операции».</p> :
               transactions.slice(0, 10).map((entry) => <div key={entry.id} className="border-b border-slate-100 py-3 last:border-0">
                 <div className="flex justify-between gap-3"><div><strong>{entry.category || (entry.type === "income" ? "Доход" : "Расход")}</strong><p className="text-xs text-slate-500">{entry.person} · {entry.date}</p>{entry.comment && <p className="text-xs text-slate-500">{entry.comment}</p>}</div><strong className={entry.type === "income" ? "text-emerald-700" : ""}>{entry.type === "income" ? "+" : "−"}{formatRub(entry.amount_cents)}</strong></div>
                 <div className="mt-2 flex gap-4 text-sm"><button disabled={loading || dataStatus !== "ready"} onClick={() => edit(entry)} className="text-blue-700 disabled:opacity-50">Изменить</button><button disabled={loading || dataStatus !== "ready"} onClick={() => remove(entry)} className="text-rose-700">Удалить</button></div>
