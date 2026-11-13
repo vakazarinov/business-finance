@@ -99,7 +99,7 @@ async function login(request, env, origin) {
   await env.DB.prepare("DELETE FROM login_attempts WHERE key=?").bind(key).run();
   return response({ token: await makeToken(env.SESSION_SECRET), expires_in: SESSION_SECONDS }, 200, env, origin);
 }
-export default {
+const worker = {
   async fetch(request, env) {
     const origin = request.headers.get("Origin");
     if (!env.DB || !env.SESSION_SECRET || !env.FAMILY_PASSWORD || !env.ALLOWED_ORIGIN) {
@@ -169,3 +169,5 @@ export default {
     }
   },
 };
+
+export default worker;
