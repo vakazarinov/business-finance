@@ -45,6 +45,7 @@ async function api<T>(path: string, token: string | null, method = "GET", body?:
     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { "Content-Type": "application/json" } : {}) },
     body: body ? JSON.stringify(body) : undefined,
     cache: "no-store",
+    signal: AbortSignal.timeout(15000),
   });
   const data = (await response.json()) as T & { error?: string };
   if (!response.ok) throw new Error(data.error || "Ошибка соединения");
@@ -117,9 +118,10 @@ export default function Home() {
     setLoading(true); setMessage("");
     try {
       const result = await api<{ token: string }>("/login", null, "POST", { password });
+      // Do not show the finance form until initial data has finished loading.
+      await refresh(result.token);
       window.sessionStorage.setItem("finance_session", result.token);
       setToken(result.token); setPassword("");
-      await refresh(result.token);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Ошибка входа"); }
     finally { setLoading(false); }
   }
