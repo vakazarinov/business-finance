@@ -51,6 +51,20 @@ async function api<T>(path: string, token: string | null, method = "GET", body?:
   if (!response.ok) throw new Error(`${path}: ${data.error || "Ошибка соединения"}`);
   return data;
 }
+// RPC uses one TLS-protected, text/plain request. No cross-origin preflight is required.
+async function rpc<T>(token: string, action: string, payload: Record<string, unknown> = {}): Promise<T> {
+  const response = await fetch(API_URL + "/rpc", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({ token, action, ...payload }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(5000),
+  });
+  const data = (await response.json()) as T & { error?: string };
+  if (!response.ok) throw new Error(data.error || "Ошибка сервера");
+  return data;
+}
+
 function allocateProfit(profit: number, shares: Share[]) {
   // Allocate integer kopeks exactly; the last participant receives the rounding remainder.
   let allocated = 0;
@@ -83,29 +97,19 @@ export default function Home() {
   const refresh = useCallback(async (authToken: string) => {
     setDataStatus("loading");
     setDataError("");
-    const results = await Promise.allSettled([
-      api<{ transactions: Transaction[] }>("/transactions", authToken),
-      api<{ shares: Share[] }>("/shares", authToken),
-    ]);
-    const [entriesResult, sharesResult] = results;
-    if (entriesResult.status === "fulfilled") {
-      setTransactions(entriesResult.value.transactions);
-      setDataStatus("ready");
-    } else {
-      setDataStatus("error");
-    }
-    if (sharesResult.status === "fulfilled") {
-      setShares(sharesResult.value.shares);
+    try {
+      const snapshot = await rpc<{ transactions: Transaction[]; shares: Share[] }>(authToken, "snapshot");
+      setTransactions(snapshot.transactions);
+      setShares(snapshot.shares);
       const draft = {} as Record<Person, string>;
-      for (const share of sharesResult.value.shares) draft[share.person] = String(share.basis_points / 100);
+      for (const share of snapshot.shares) draft[share.person] = String(share.basis_points / 100);
       setShareDraft(draft);
-    }
-    const failures = results.flatMap((result, index) => result.status === "rejected"
-      ? [`${index === 0 ? "Операции" : "Доли"}: ${result.reason instanceof Error ? result.reason.message : "нет ответа"}`]
-      : []);
-    if (failures.length) {
-      setDataError(failures.join("; "));
-      throw new Error(failures.join("; "));
+      setDataStatus("ready");
+    } catch (error) {
+      setDataStatus("error");
+      const detail = error instanceof Error ? error.message : "Нет ответа сервера";
+      setDataError(detail);
+      throw error;
     }
   }, []);
 
@@ -142,7 +146,14 @@ export default function Home() {
     event.preventDefault();
     setLoading(true); setMessage("");
     try {
-      const result = await api<{ token: string }>("/login", null, "POST", { password });
+      const result = await fetch(API_URL + "/login", {
+        method: "POST", headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ password }), signal: AbortSignal.timeout(5000),
+      }).then(async (response) => {
+        const data = (await response.json()) as { token?: string; error?: string };
+        if (!response.ok || !data.token) throw new Error(data.error || "Ошибка входа");
+        return { token: data.token };
+      });
       window.sessionStorage.setItem("finance_session", result.token);
       setToken(result.token); setPassword("");
       try {
@@ -166,11 +177,12 @@ export default function Home() {
     try {
       const payload = { date: form.date, type: form.type, person: form.person, amount_cents, category: form.category, comment: form.comment };
       if (editingId) {
-        await api(`/transactions/${editingId}`, token, "PATCH", payload);
+        await rpc(token, "edit", { id: editingId, entry: payload });
         const id = editingId;
         setTransactions((previous) => previous.map((entry) => entry.id === id ? { ...entry, ...payload } : entry));
       } else {
-        const result = await api<{ id: string }>("/transactions", token, "POST", payload);
+        const id = crypto.randomUUID();
+        const result = await rpc<{ id: string }>(token, "create", { id, entry: payload });
         const entry: Transaction = { id: result.id, ...payload, created_at: new Date().toISOString() };
         setTransactions((previous) => [entry, ...previous].sort((x, y) =>
           y.date.localeCompare(x.date) || y.created_at.localeCompare(x.created_at)));
@@ -191,7 +203,7 @@ export default function Home() {
     if (!token || loading || dataStatus !== "ready" || !window.confirm(`Удалить операцию «${entry.category || entry.type}» на ${formatRub(entry.amount_cents)}?`)) return;
     setLoading(true); setMessage("");
     try {
-      await api(`/transactions/${entry.id}`, token, "DELETE");
+      await rpc(token, "delete", { id: entry.id });
       setTransactions((previous) => previous.filter((item) => item.id !== entry.id));
       setMessage("Операция удалена из базы");
     } catch (error) { setMessage(`Не удалось подтвердить удаление: ${error instanceof Error ? error.message : "Ошибка удаления"}. Проверьте историю после обновления страницы.`); }
@@ -205,7 +217,7 @@ export default function Home() {
     }
     setLoading(true); setMessage("");
     try {
-      await api("/shares", token, "PUT", { shares: updated });
+      await rpc(token, "shares", { shares: updated });
       setShares(updated);
       setMessage("Доли обновлены в базе");
     } catch (error) { setMessage(`Не удалось подтвердить изменение долей: ${error instanceof Error ? error.message : "Ошибка соединения"}. Проверьте доли после обновления страницы.`); }
