@@ -27,6 +27,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Run API smoke tests
+        run: node --test tests/worker.test.mjs
       - name: Build static site
         run: npm run build
         env:
