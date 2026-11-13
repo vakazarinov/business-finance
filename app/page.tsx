@@ -153,10 +153,20 @@ export default function Home() {
     setLoading(true); setMessage("");
     try {
       const payload = { date: form.date, type: form.type, person: form.person, amount_cents, category: form.category, comment: form.comment };
-      await api(editingId ? `/transactions/${editingId}` : "/transactions", token, editingId ? "PATCH" : "POST", payload);
-      await refresh(token);
-      setForm(initialForm()); setEditingId(null); setMessage("Операция сохранена");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Ошибка сохранения"); }
+      if (editingId) {
+        await api(`/transactions/${editingId}`, token, "PATCH", payload);
+        const id = editingId;
+        setTransactions((previous) => previous.map((entry) => entry.id === id ? { ...entry, ...payload } : entry));
+      } else {
+        const result = await api<{ id: string }>("/transactions", token, "POST", payload);
+        const entry: Transaction = { id: result.id, ...payload, created_at: new Date().toISOString() };
+        setTransactions((previous) => [entry, ...previous].sort((x, y) =>
+          y.date.localeCompare(x.date) || y.created_at.localeCompare(x.created_at)));
+      }
+      setForm(initialForm()); setEditingId(null); setMessage("Операция сохранена в базе");
+    } catch (error) {
+      setMessage(`Не удалось подтвердить сохранение: ${error instanceof Error ? error.message : "Ошибка соединения"}. Перед повторной отправкой обновите страницу и проверьте историю: операция могла сохраниться.`);
+    }
     finally { setLoading(false); }
   }
   function edit(entry: Transaction) {
@@ -170,8 +180,9 @@ export default function Home() {
     setLoading(true); setMessage("");
     try {
       await api(`/transactions/${entry.id}`, token, "DELETE");
-      await refresh(token); setMessage("Операция удалена");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Ошибка удаления"); }
+      setTransactions((previous) => previous.filter((item) => item.id !== entry.id));
+      setMessage("Операция удалена из базы");
+    } catch (error) { setMessage(`Не удалось подтвердить удаление: ${error instanceof Error ? error.message : "Ошибка удаления"}. Проверьте историю после обновления страницы.`); }
     finally { setLoading(false); }
   }
   async function saveShares() {
@@ -183,8 +194,9 @@ export default function Home() {
     setLoading(true); setMessage("");
     try {
       await api("/shares", token, "PUT", { shares: updated });
-      await refresh(token); setMessage("Доли обновлены");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Ошибка сохранения долей"); }
+      setShares(updated);
+      setMessage("Доли обновлены в базе");
+    } catch (error) { setMessage(`Не удалось подтвердить изменение долей: ${error instanceof Error ? error.message : "Ошибка соединения"}. Проверьте доли после обновления страницы.`); }
     finally { setLoading(false); }
   }
 
