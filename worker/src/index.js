@@ -112,6 +112,62 @@ const worker = {
     if (path === "/health" && request.method === "GET") return response({ ok: true }, 200, env, origin);
     try {
       if (path === "/login" && request.method === "POST") return await login(request, env, origin);
+      if (path === "/rpc" && request.method === "POST") {
+        // A text/plain JSON envelope avoids the browser's extra CORS preflight.
+        // The bearer token remains in the TLS-protected request body, never a URL.
+        const body = await readJson(request);
+        if (!(await tokenValid(body?.token, env.SESSION_SECRET))) {
+          return response({ error: "Необходим вход в приложение" }, 401, env, origin);
+        }
+        if (body.action === "snapshot") {
+          const [entries, configuredShares] = await Promise.all([
+            env.DB.prepare("SELECT * FROM transactions ORDER BY date DESC, created_at DESC LIMIT 5000").all(),
+            env.DB.prepare("SELECT person,basis_points FROM profit_shares").all(),
+          ]);
+          return response({ transactions: entries.results, shares: configuredShares.results }, 200, env, origin);
+        }
+        if (body.action === "create") {
+          const error = validateEntry(body.entry);
+          if (error) return response({ error }, 400, env, origin);
+          const id = body.id;
+          if (typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+            return response({ error: "Некорректный идентификатор операции" }, 400, env, origin);
+          }
+          const entry = body.entry;
+          await env.DB.prepare("INSERT OR IGNORE INTO transactions(id,date,type,person,amount_cents,category,comment) VALUES (?,?,?,?,?,?,?)")
+            .bind(id, entry.date, entry.type, entry.person, entry.amount_cents, entry.category.trim(), entry.comment.trim()).run();
+          return response({ id }, 200, env, origin);
+        }
+        if (body.action === "edit") {
+          const error = validateEntry(body.entry);
+          if (error) return response({ error }, 400, env, origin);
+          if (typeof body.id !== "string" || !/^[a-f0-9-]{36}$/i.test(body.id)) return response({ error: "Некорректный ID" }, 400, env, origin);
+          const entry = body.entry;
+          const result = await env.DB.prepare("UPDATE transactions SET date=?,type=?,person=?,amount_cents=?,category=?,comment=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+            .bind(entry.date, entry.type, entry.person, entry.amount_cents, entry.category.trim(), entry.comment.trim(), body.id).run();
+          return result.meta.changes ? response({ ok: true }, 200, env, origin) : response({ error: "Операция не найдена" }, 404, env, origin);
+        }
+        if (body.action === "delete") {
+          if (typeof body.id !== "string" || !/^[a-f0-9-]{36}$/i.test(body.id)) return response({ error: "Некорректный ID" }, 400, env, origin);
+          await env.DB.prepare("DELETE FROM transactions WHERE id=?").bind(body.id).run();
+          return response({ ok: true }, 200, env, origin);
+        }
+        if (body.action === "shares") {
+          if (!Array.isArray(body.shares) || body.shares.length !== 4) return response({ error: "Укажите четыре доли" }, 400, env, origin);
+          const byPerson = new Map();
+          for (const item of body.shares) {
+            if (!PEOPLE.includes(item?.person) || byPerson.has(item.person) || !Number.isInteger(item.basis_points) || item.basis_points < 0 || item.basis_points > 10000) {
+              return response({ error: "Некорректные доли" }, 400, env, origin);
+            }
+            byPerson.set(item.person, item.basis_points);
+          }
+          if ([...byPerson.values()].reduce((sum, points) => sum + points, 0) !== 10000) return response({ error: "Сумма долей должна составлять 100%" }, 400, env, origin);
+          await env.DB.batch(PEOPLE.map((person) => env.DB.prepare("UPDATE profit_shares SET basis_points=? WHERE person=?").bind(byPerson.get(person), person)));
+          return response({ ok: true }, 200, env, origin);
+        }
+        return response({ error: "Неизвестная операция" }, 400, env, origin);
+      }
+
       const token = (request.headers.get("Authorization") || "").replace(/^Bearer /i, "");
       if (!(await tokenValid(token, env.SESSION_SECRET))) return response({ error: "Необходим вход в приложение" }, 401, env, origin);
       if (path === "/transactions" && request.method === "GET") {
