@@ -544,14 +544,60 @@ export default function Home() {
               </form>
             </section>
           )}
-          {tab === "entries" && <section className="rounded-2xl bg-white p-5">
-            <div className="mb-4 flex items-center justify-between gap-2"><h2 className="text-lg font-bold">История операций</h2><span className="text-xs text-slate-500">{transactions.length} записей</span></div>
-            {!hasSnapshot ? <p className="text-sm text-amber-800">{dataStatus === "loading" ? "Загружаем операции из базы..." : "История сейчас недоступна. Записи в базе не удалены; используйте «Повторить загрузку»."}</p> : transactions.length === 0 ? <p className="text-sm text-slate-500">В базе пока нет операций. Добавь первую во вкладке «Операции».</p> :
-              transactions.map((entry) => <div key={entry.id} className="border-b border-slate-100 py-3 last:border-0">
-                <div className="flex justify-between gap-3"><div><strong>{entry.category || (entry.type === "income" ? "Доход" : "Расход")}</strong><p className="text-xs text-slate-500">{entry.person} · {entry.date}</p>{entry.comment && <p className="text-xs text-slate-500">{entry.comment}</p>}</div><strong className={entry.type === "income" ? "text-emerald-700" : ""}>{entry.type === "income" ? "+" : "−"}{formatRub(entry.amount_cents)}</strong></div>
-                <div className="mt-2 flex gap-4 text-sm"><button disabled={loading || dataStatus !== "ready"} onClick={() => edit(entry)} className="text-blue-700 disabled:opacity-50">Изменить</button><button disabled={loading || dataStatus !== "ready"} onClick={() => remove(entry)} className="text-rose-700">Удалить</button></div>
-              </div>)}
-          </section>}
+          {tab === "entries" && (
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-sm sm:p-5">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <h2 className="text-lg font-bold text-slate-900">История операций</h2>
+                  <p className="text-xs text-slate-500">
+                    {showAllTransactions
+                      ? `Все записи: ${transactions.length}`
+                      : `Последние ${Math.min(5, transactions.length)} из ${transactions.length}`}
+                  </p>
+                </div>
+                {transactions.length > 5 && (
+                  <button type="button" onClick={() => setShowAllTransactions((old) => !old)}
+                    aria-expanded={showAllTransactions}
+                    className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                    <span>{showAllTransactions ? "Скрыть" : `Ещё ${hiddenTransactionsCount}`}</span>
+                    <span aria-hidden="true" className={`inline-block text-lg leading-none transition-transform ${showAllTransactions ? "rotate-180" : ""}`}>⌄</span>
+                  </button>
+                )}
+              </div>
+              {!hasSnapshot ? (
+                <p className="text-sm text-amber-800">
+                  {dataStatus === "loading" ? "Загружаем операции из базы..." : "История сейчас недоступна. Записи в базе не удалены; используйте «Повторить загрузку»."}
+                </p>
+              ) : transactions.length === 0 ? (
+                <p className="text-sm text-slate-500">Пока нет операций. Добавьте первую с помощью формы выше.</p>
+              ) : (
+                <div className="space-y-2">
+                  {visibleTransactions.map((entry) => (
+                    <article key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="break-words text-sm font-semibold text-slate-900">
+                            {entry.category || (entry.type === "income" ? "Доход" : "Расход")}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-500">{entry.person} · {entry.date} · {entry.type === "income" ? "Доход" : "Расход"}</p>
+                          {entry.comment && <p className="mt-1 break-words text-sm text-slate-600">{entry.comment}</p>}
+                        </div>
+                        <p className={`shrink-0 text-right text-sm font-bold tabular-nums ${entry.type === "income" ? "text-emerald-700" : "text-slate-900"}`}>
+                          {entry.type === "income" ? "+" : "−"}{formatRub(entry.amount_cents)}
+                        </p>
+                      </div>
+                      <div className="mt-2 flex items-center gap-4 border-t border-slate-200 pt-2 text-sm">
+                        <button type="button" disabled={loading || dataStatus !== "ready"}
+                          onClick={() => edit(entry)} className="font-medium text-blue-700 disabled:opacity-50">Изменить</button>
+                        <button type="button" disabled={loading || dataStatus !== "ready"}
+                          onClick={() => remove(entry)} className="font-medium text-rose-700 disabled:opacity-50">Удалить</button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
           <p className="mt-6 text-center text-xs text-slate-500">Финансовые данные хранятся в Supabase PostgreSQL, а не на GitHub Pages.</p>
           <p className="mt-3 text-center text-sm"><a className="text-blue-700 underline" href="/business-finance/diagnostics/">Проверить скорость соединения</a></p>
         </>
