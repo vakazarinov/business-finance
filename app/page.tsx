@@ -18,7 +18,7 @@ type Share = { person: Person; basis_points: number };
 type FormData = { date: string; type: EntryType; person: Person; amount: string; category: string; comment: string };
 const PEOPLE: Person[] = ["Витя", "Маша", "Петя", "Саша"];
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
-const GATEWAY_URL = API_URL + "/rpc";
+const GATEWAY_URL = "https://vzfpcwfasnqpuzezkbbh.supabase.co/functions/v1/finance-direct";
 const RUB = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" });
 const formatRub = (kopeks: number) => RUB.format(kopeks / 100);
 const dateToday = () => {
@@ -104,7 +104,7 @@ export default function Home() {
       setDataStatus("ready");
       // Stored only in this tab's session. Removed on logout.
       try {
-        window.sessionStorage.setItem("finance_snapshot", JSON.stringify({ token: authToken, snapshot, savedAt: Date.now() }));
+        window.sessionStorage.setItem("finance_snapshot_supabase_v1", JSON.stringify({ token: authToken, snapshot, savedAt: Date.now() }));
       } catch { /* private browsing may disallow storage */ }
     } catch (error) {
       if (seq !== refreshSequence.current) return;
@@ -117,12 +117,14 @@ export default function Home() {
 
   useEffect(() => {
     if (!API_URL) return;
-    const saved = window.sessionStorage.getItem("finance_session");
+    window.sessionStorage.removeItem("finance_session");
+    window.sessionStorage.removeItem("finance_snapshot");
+    const saved = window.sessionStorage.getItem("finance_session_supabase_v1");
     if (!saved) return;
     const handle = window.setTimeout(() => {
       setToken(saved);
       try {
-        const cached = JSON.parse(window.sessionStorage.getItem("finance_snapshot") || "null") as {
+        const cached = JSON.parse(window.sessionStorage.getItem("finance_snapshot_supabase_v1") || "null") as {
           token?: string; snapshot?: { transactions: Transaction[]; shares: Share[] }; savedAt?: number
         } | null;
         if (cached?.token === saved && Array.isArray(cached.snapshot?.transactions) &&
@@ -133,11 +135,11 @@ export default function Home() {
           setHasSnapshot(true);
           setDataStatus("cached");
         }
-      } catch { window.sessionStorage.removeItem("finance_snapshot"); }
+      } catch { window.sessionStorage.removeItem("finance_snapshot_supabase_v1"); }
       refresh(saved).catch((error) => {
         if (error instanceof Error && error.message.includes("Необходим вход")) {
-          window.sessionStorage.removeItem("finance_session");
-          window.sessionStorage.removeItem("finance_snapshot");
+          window.sessionStorage.removeItem("finance_session_supabase_v1");
+          window.sessionStorage.removeItem("finance_snapshot_supabase_v1");
           setToken(null);
           setHasSnapshot(false);
         } else {
@@ -153,7 +155,7 @@ export default function Home() {
   useEffect(() => {
     if (dataStatus !== "ready" || !token) return;
     try {
-      window.sessionStorage.setItem("finance_snapshot", JSON.stringify({
+      window.sessionStorage.setItem("finance_snapshot_supabase_v1", JSON.stringify({
         token, snapshot: { transactions, shares }, savedAt: Date.now(),
       }));
     } catch { /* Storage is optional */ }
@@ -174,7 +176,7 @@ export default function Home() {
     event.preventDefault();
     setLoading(true); setMessage("");
     try {
-      const result = await fetch(API_URL + "/login", {
+      const result = await fetch(GATEWAY_URL, {
         method: "POST", headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({ action: "login", password }), signal: AbortSignal.timeout(5000),
       }).then(async (response) => {
@@ -182,7 +184,7 @@ export default function Home() {
         if (!response.ok || !data.token) throw new Error(data.error || "Ошибка входа");
         return { token: data.token };
       });
-      window.sessionStorage.setItem("finance_session", result.token);
+      window.sessionStorage.setItem("finance_session_supabase_v1", result.token);
       setToken(result.token); setPassword("");
       try {
         await refresh(result.token);
@@ -193,8 +195,8 @@ export default function Home() {
     finally { setLoading(false); }
   }
   function signOut() {
-    window.sessionStorage.removeItem("finance_session");
-    window.sessionStorage.removeItem("finance_snapshot");
+    window.sessionStorage.removeItem("finance_session_supabase_v1");
+    window.sessionStorage.removeItem("finance_snapshot_supabase_v1");
     refreshSequence.current++;
     setToken(null); setTransactions([]); setHasSnapshot(false); setDataStatus("idle"); setDataError(""); setTab("summary");
   }
@@ -269,7 +271,7 @@ export default function Home() {
       ) : !token ? (
         <form onSubmit={signIn} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-2 text-xl font-bold">Вход для семьи</h2>
-          <p className="mb-4 text-sm text-slate-500">Один общий пароль. Он проверяется на сервере, а не на GitHub Pages.</p>
+          <p className="mb-4 text-sm text-slate-500">Один общий пароль для новой базы Supabase. Пароль не хранится в коде сайта.</p>
           <label htmlFor="password" className="mb-2 block text-sm font-medium">Пароль</label>
           <input id="password" type="password" required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mb-4 w-full rounded-xl border border-slate-300 p-3" />
           <button type="submit" disabled={loading} className="w-full rounded-xl bg-slate-900 p-3 font-semibold text-white disabled:opacity-50">{loading ? "Проверяем..." : "Войти"}</button>
@@ -358,7 +360,7 @@ export default function Home() {
                 <div className="mt-2 flex gap-4 text-sm"><button disabled={loading || dataStatus !== "ready"} onClick={() => edit(entry)} className="text-blue-700 disabled:opacity-50">Изменить</button><button disabled={loading || dataStatus !== "ready"} onClick={() => remove(entry)} className="text-rose-700">Удалить</button></div>
               </div>)}
           </section>
-          <p className="mt-6 text-center text-xs text-slate-500">Финансовые данные хранятся в Cloudflare D1, а не на GitHub Pages.</p>
+          <p className="mt-6 text-center text-xs text-slate-500">Финансовые данные хранятся в Supabase PostgreSQL, а не на GitHub Pages.</p>
           <p className="mt-3 text-center text-sm"><a className="text-blue-700 underline" href="/business-finance/diagnostics/">Проверить скорость соединения</a></p>
         </>
       )}
