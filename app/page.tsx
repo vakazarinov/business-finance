@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-type Person = "Витя" | "Маша" | "Петя" | "Саша";
+type Person = "Саша" | "Наташа" | "Витя" | "Денис";
 type EntryType = "income" | "expense";
 type Transaction = {
   id: string;
@@ -16,7 +16,8 @@ type Transaction = {
 };
 type Share = { person: Person; basis_points: number };
 type FormData = { date: string; type: EntryType; person: Person; amount: string; category: string; comment: string };
-const PEOPLE: Person[] = ["Витя", "Маша", "Петя", "Саша"];
+const PEOPLE: Person[] = ["Саша", "Наташа", "Витя", "Денис"];
+const CATEGORIES = ["Аренда", "Коммунальные услуги", "Уборка и расходники", "Ремонт и обслуживание", "Комиссии и реклама"] as const;
 const API_URL = "https://vzfpcwfasnqpuzezkbbh.supabase.co/functions/v1/finance-direct";
 const GATEWAY_URL = API_URL;
 const RUB = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" });
@@ -25,7 +26,7 @@ const dateToday = () => {
   const d = new Date();
   return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
 };
-const initialForm = (): FormData => ({ date: dateToday(), type: "expense", person: "Витя", amount: "", category: "", comment: "" });
+const initialForm = (): FormData => ({ date: dateToday(), type: "expense", person: "Витя", amount: "", category: "Уборка и расходники", comment: "" });
 function previousMonth() {
   const now = new Date();
   const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
@@ -82,8 +83,11 @@ export default function Home() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [period, setPeriod] = useState<"previous" | "custom" | "all">("previous");
   const [dates, setDates] = useState(previousMonth);
-  const [tab, setTab] = useState<"summary" | "entries" | "shares">("summary");
-  const [shareDraft, setShareDraft] = useState<Record<Person, string>>({ "Витя": "25", "Маша": "25", "Петя": "25", "Саша": "25" });
+  const [tab, setTab] = useState<"summary" | "entries">("entries");
+  const [shareMode, setShareMode] = useState<"equal" | "custom">("equal");
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const [calculatorError, setCalculatorError] = useState("");
+  const [shareDraft, setShareDraft] = useState<Record<Person, string>>({ "Саша": "25", "Наташа": "25", "Витя": "25", "Денис": "25" });
 
   const refresh = useCallback(async (authToken: string) => {
     const seq = ++refreshSequence.current;
@@ -165,12 +169,33 @@ export default function Home() {
   const totalIncome = filtered.filter((entry) => entry.type === "income").reduce((sum, entry) => sum + entry.amount_cents, 0);
   const totalExpenses = filtered.filter((entry) => entry.type === "expense").reduce((sum, entry) => sum + entry.amount_cents, 0);
   const profit = totalIncome - totalExpenses;
-  const allocations = allocateProfit(profit, shares);
+  const activeShares = shareMode === "equal" ? PEOPLE.map((person) => ({ person, basis_points: 2500 })) : shares;
+  const allocations = allocateProfit(profit, activeShares);
   const balances = PEOPLE.map((person) => {
     const own = filtered.filter((entry) => entry.person === person).reduce((sum, entry) => sum + (entry.type === "income" ? entry.amount_cents : -entry.amount_cents), 0);
     const target = allocations.get(person) || 0;
     return { person, own, target, difference: own - target };
   });
+
+  // Positive difference means a participant holds more cash than their profit share:
+  // they pay somebody whose difference is negative. All amounts are integer kopeks.
+  const recommendedTransfers = (() => {
+    const payers = balances.filter((b) => b.difference > 0).map((b) => ({ person: b.person, remaining: b.difference }))
+      .sort((a, b) => b.remaining - a.remaining);
+    const receivers = balances.filter((b) => b.difference < 0).map((b) => ({ person: b.person, remaining: -b.difference }))
+      .sort((a, b) => b.remaining - a.remaining);
+    const result: { from: Person; to: Person; amount: number }[] = [];
+    let i = 0, j = 0;
+    while (i < payers.length && j < receivers.length) {
+      const amount = Math.min(payers[i].remaining, receivers[j].remaining);
+      if (amount > 0) result.push({ from: payers[i].person, to: receivers[j].person, amount });
+      payers[i].remaining -= amount;
+      receivers[j].remaining -= amount;
+      if (!payers[i].remaining) i++;
+      if (!receivers[j].remaining) j++;
+    }
+    return result;
+  })();
 
   async function signIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -198,7 +223,7 @@ export default function Home() {
     window.sessionStorage.removeItem("finance_session_supabase_v1");
     window.sessionStorage.removeItem("finance_snapshot_supabase_v1");
     refreshSequence.current++;
-    setToken(null); setTransactions([]); setHasSnapshot(false); setDataStatus("idle"); setDataError(""); setTab("summary");
+    setToken(null); setTransactions([]); setHasSnapshot(false); setDataStatus("idle"); setDataError(""); setTab("entries");
   }
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
