@@ -287,7 +287,7 @@ export default function Home() {
             Показана последняя сохранённая копия данных этой вкладки. Проверка актуальности через сервер ещё не завершена. Изменения временно недоступны.
             {dataError && <p className="mt-2">Связь с сервером: {dataError}</p>}
             <button type="button" disabled={loading} onClick={() => token && refresh(token).catch(() => {})} className="mt-2 rounded-lg bg-slate-900 px-3 py-2 font-semibold text-white">Повторить проверку</button>
-          </div>
+          </div>}
           {dataStatus === "error" && <div role="alert" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
             <p className="font-semibold">Не удалось загрузить историю. Это не означает, что записи удалены.</p>
             <p className="mt-1 break-words">{dataError}</p>
