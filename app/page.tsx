@@ -18,6 +18,7 @@ type Share = { person: Person; basis_points: number };
 type FormData = { date: string; type: EntryType; person: Person; amount: string; category: string; comment: string };
 const PEOPLE: Person[] = ["Витя", "Маша", "Петя", "Саша"];
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+const GATEWAY_URL = "https://vzfpcwfasnqpuzezkbbh.supabase.co/functions/v1/finance-gateway";
 const RUB = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" });
 const formatRub = (kopeks: number) => RUB.format(kopeks / 100);
 const dateToday = () => {
@@ -39,21 +40,9 @@ function amountToCents(input: string): number | null {
   const value = Number(whole) * 100 + Number(cents.padEnd(2, "0"));
   return Number.isSafeInteger(value) && value > 0 ? value : null;
 }
-async function api<T>(path: string, token: string | null, method = "GET", body?: unknown): Promise<T> {
-  const response = await fetch(API_URL + path, {
-    method,
-    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { "Content-Type": "application/json" } : {}) },
-    body: body ? JSON.stringify(body) : undefined,
-    cache: "no-store",
-    signal: AbortSignal.timeout(method === "GET" ? 45000 : 20000),
-  });
-  const data = (await response.json()) as T & { error?: string };
-  if (!response.ok) throw new Error(`${path}: ${data.error || "Ошибка соединения"}`);
-  return data;
-}
 // RPC uses one TLS-protected, text/plain request. No cross-origin preflight is required.
 async function rpc<T>(token: string, action: string, payload: Record<string, unknown> = {}): Promise<T> {
-  const response = await fetch(API_URL + "/rpc", {
+  const response = await fetch(GATEWAY_URL, {
     method: "POST",
     headers: { "Content-Type": "text/plain" },
     body: JSON.stringify({ token, action, ...payload }),
@@ -63,57 +52,6 @@ async function rpc<T>(token: string, action: string, payload: Record<string, unk
   const data = (await response.json()) as T & { error?: string };
   if (!response.ok) throw new Error(data.error || "Ошибка сервера");
   return data;
-}
-
-// Read-only hedged requests: a stalled network connection cannot hold up a faster one.
-// The total deadline is five seconds, including staggered starts.
-async function fastSnapshot<T>(token: string): Promise<T> {
-  const controllers = [new AbortController(), new AbortController(), new AbortController()];
-  const scheduled: ReturnType<typeof setTimeout>[] = [];
-  const envelope = JSON.stringify({ token, action: "snapshot" });
-  const request = (index: number, delay: number) => new Promise<T>((resolve, reject) => {
-    scheduled[index] = setTimeout(async () => {
-      try {
-        const response = await fetch(API_URL + "/rpc", {
-          method: "POST",
-          headers: { "Content-Type": "text/plain" },
-          body: envelope,
-          cache: "no-store",
-          signal: controllers[index].signal,
-        });
-        const result = (await response.json()) as T & { error?: string };
-        if (!response.ok) throw new Error(result.error || "Ошибка сервера");
-        resolve(result);
-      } catch (error) {
-        reject(error);
-      }
-    }, delay);
-  });
-
-  let deadline: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const attempts = [request(0, 0), request(1, 300), request(2, 900)];
-    const limit = new Promise<never>((_, reject) => {
-      deadline = setTimeout(() => reject(new Error("Не удалось загрузить данные за 5 секунд")), 5000);
-    });
-    return await Promise.race([
-      Promise.any(attempts).catch((error: unknown) => {
-        if (error instanceof AggregateError) {
-          const failures = error.errors as unknown[];
-          const authFailure = failures.find((item) => item instanceof Error && item.message.includes("Необходим вход"));
-          if (authFailure) throw authFailure;
-          const other = failures.find((item) => item instanceof Error && item.name !== "AbortError");
-          if (other) throw other;
-        }
-        throw error;
-      }),
-      limit,
-    ]);
-  } finally {
-    if (deadline) clearTimeout(deadline);
-    for (const timer of scheduled) if (timer) clearTimeout(timer);
-    for (const controller of controllers) controller.abort();
-  }
 }
 
 function allocateProfit(profit: number, shares: Share[]) {
@@ -152,7 +90,7 @@ export default function Home() {
     setDataStatus((status) => status === "cached" || status === "ready" ? "cached" : "loading");
     setDataError("");
     try {
-      const snapshot = await fastSnapshot<{ transactions: Transaction[]; shares: Share[] }>(authToken);
+      const snapshot = await rpc<{ transactions: Transaction[]; shares: Share[] }>(authToken, "snapshot");
       if (seq !== refreshSequence.current) return;
       if (!Array.isArray(snapshot.transactions) || !Array.isArray(snapshot.shares) || snapshot.shares.length !== 4) {
         throw new Error("Сервер вернул неполные финансовые данные");
@@ -236,9 +174,9 @@ export default function Home() {
     event.preventDefault();
     setLoading(true); setMessage("");
     try {
-      const result = await fetch(API_URL + "/login", {
+      const result = await fetch(GATEWAY_URL, {
         method: "POST", headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ password }), signal: AbortSignal.timeout(5000),
+        body: JSON.stringify({ action: "login", password }), signal: AbortSignal.timeout(5000),
       }).then(async (response) => {
         const data = (await response.json()) as { token?: string; error?: string };
         if (!response.ok || !data.token) throw new Error(data.error || "Ошибка входа");
