@@ -369,8 +369,8 @@ export default function Home() {
         </form>
       ) : (
         <>
-          <nav aria-label="Разделы" className="mb-5 grid grid-cols-3 gap-2">
-            {([{ key: "summary", title: "Сводка" }, { key: "entries", title: "Операции" }, { key: "shares", title: "Доли" }] as const).map((item) => (
+          <nav aria-label="Разделы" className="mb-5 grid grid-cols-2 gap-2">
+            {([{ key: "entries", title: "Операции" }, { key: "summary", title: "Сводка" }] as const).map((item) => (
               <button key={item.key} onClick={() => { setTab(item.key); setMessage(""); }} className={`rounded-xl px-2 py-3 text-sm font-semibold ${tab === item.key ? "bg-slate-900 text-white" : "bg-white text-slate-700"}`}>{item.title}</button>
             ))}
           </nav>
@@ -434,22 +434,14 @@ export default function Home() {
               </form>
             </section>
           )}
-          {tab === "shares" && (
-            <section className="mb-5 rounded-2xl bg-white p-5">
-              <h2 className="mb-2 text-lg font-bold">Доли участников</h2>
-              <p className="mb-4 text-sm text-slate-500">Все доли должны суммироваться в 100%. Изменение пересчитывает и исторические периоды — фиксацию долей по месяцам добавим отдельно.</p>
-              {PEOPLE.map((person) => <label key={person} className="mb-3 flex items-center justify-between gap-3 text-sm"><span>{person}</span><span className="flex items-center gap-2"><input inputMode="decimal" value={shareDraft[person] || ""} onChange={(event) => setShareDraft({ ...shareDraft, [person]: event.target.value })} className="w-24 rounded-lg border border-slate-300 p-2 text-right" />%</span></label>)}
-              <button disabled={loading || dataStatus !== "ready"} onClick={saveShares} className="w-full rounded-xl bg-slate-900 p-3 font-semibold text-white disabled:opacity-50">Сохранить доли</button>
-            </section>
-          )}
-          <section className="rounded-2xl bg-white p-5">
+          {tab === "entries" && <section className="rounded-2xl bg-white p-5">
             <div className="mb-4 flex items-center justify-between gap-2"><h2 className="text-lg font-bold">Последние операции</h2><span className="text-xs text-slate-500">До 10</span></div>
             {!hasSnapshot ? <p className="text-sm text-amber-800">{dataStatus === "loading" ? "Загружаем операции из базы..." : "История сейчас недоступна. Записи в базе не удалены; используйте «Повторить загрузку»."}</p> : transactions.length === 0 ? <p className="text-sm text-slate-500">В базе пока нет операций. Добавь первую во вкладке «Операции».</p> :
               transactions.slice(0, 10).map((entry) => <div key={entry.id} className="border-b border-slate-100 py-3 last:border-0">
                 <div className="flex justify-between gap-3"><div><strong>{entry.category || (entry.type === "income" ? "Доход" : "Расход")}</strong><p className="text-xs text-slate-500">{entry.person} · {entry.date}</p>{entry.comment && <p className="text-xs text-slate-500">{entry.comment}</p>}</div><strong className={entry.type === "income" ? "text-emerald-700" : ""}>{entry.type === "income" ? "+" : "−"}{formatRub(entry.amount_cents)}</strong></div>
                 <div className="mt-2 flex gap-4 text-sm"><button disabled={loading || dataStatus !== "ready"} onClick={() => edit(entry)} className="text-blue-700 disabled:opacity-50">Изменить</button><button disabled={loading || dataStatus !== "ready"} onClick={() => remove(entry)} className="text-rose-700">Удалить</button></div>
               </div>)}
-          </section>
+          </section>}
           <p className="mt-6 text-center text-xs text-slate-500">Финансовые данные хранятся в Supabase PostgreSQL, а не на GitHub Pages.</p>
           <p className="mt-3 text-center text-sm"><a className="text-blue-700 underline" href="/business-finance/diagnostics/">Проверить скорость соединения</a></p>
         </>
