@@ -19,6 +19,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - run: node --test tests/worker.test.mjs
       - run: npm run build
       - name: Check Worker JavaScript syntax
         run: node --check worker/src/index.js
