@@ -33,9 +33,9 @@ function makeDb() {
           if (sql.startsWith("DELETE FROM login_attempts")) { attempts.delete(values[0]); return { meta: { changes: 1 } }; }
           if (sql.startsWith("INSERT INTO login_attempts")) { attempts.set(values[0], { attempts: 1, first_attempt_ms: values[1] }); return { meta: { changes: 1 } }; }
           if (sql.startsWith("UPDATE login_attempts")) { const row = attempts.get(values[0]); if (row) row.attempts++; return { meta: { changes: 1 } }; }
-          if (sql.startsWith("INSERT INTO transactions")) {
+          if (sql.startsWith("INSERT INTO transactions") || sql.startsWith("INSERT OR IGNORE INTO transactions")) {
             const [id, date, type, person, amount_cents, category, comment] = values;
-            rows.push({ id, date, type, person, amount_cents, category, comment, created_at: new Date().toISOString() });
+            if (!rows.some((entry) => entry.id === id)) rows.push({ id, date, type, person, amount_cents, category, comment, created_at: new Date().toISOString() });
             return { meta: { changes: 1 } };
           }
           if (sql.startsWith("UPDATE transactions")) {
@@ -133,4 +133,36 @@ test("bad entry is rejected before a database write", async () => {
   }, token);
   assert.equal(response.status, 400);
   assert.equal(env.DB.rows.length, 0);
+});
+
+test("single-request snapshot and idempotent writes use text/plain without preflight", async () => {
+  const { request, env } = setup();
+  const auth = await request("/login", "POST", { password: "test-only-password" });
+  const { token } = await auth.json();
+  const call = async (action, more = {}) => {
+    const response = await worker.fetch(new Request(url + "/rpc", {
+      method: "POST",
+      headers: { Origin: env.ALLOWED_ORIGIN, "Content-Type": "text/plain" },
+      body: JSON.stringify({ token, action, ...more }),
+    }), env);
+    return response;
+  };
+  const initial = await call("snapshot");
+  assert.equal(initial.status, 200);
+  assert.deepEqual((await initial.json()).transactions, []);
+  const id = "b5de4f42-6fb3-4b33-a201-d81e6e1891f0";
+  const entry = { date: "2026-11-14", type: "income", person: "Витя", amount_cents: 10000, category: "Тест", comment: "" };
+  assert.equal((await call("create", { id, entry })).status, 200);
+  assert.equal((await call("create", { id, entry })).status, 200);
+  assert.equal(env.DB.rows.length, 1, "retrying the same id must not duplicate a transaction");
+  assert.equal((await call("edit", { id, entry: { ...entry, amount_cents: 12000 } })).status, 200);
+  const updated = await call("snapshot");
+  const payload = await updated.json();
+  assert.equal(payload.transactions.length, 1);
+  assert.equal(payload.transactions[0].amount_cents, 12000);
+  assert.equal(payload.shares.length, 4);
+  assert.equal((await call("shares", { shares: payload.shares })).status, 200);
+  assert.equal((await call("delete", { id })).status, 200);
+  assert.equal(env.DB.rows.length, 0);
+  assert.equal((await call("snapshot", { token: "invalid" })).status, 401);
 });
