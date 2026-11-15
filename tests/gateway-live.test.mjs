@@ -36,3 +36,15 @@ test("direct Supabase API rejects foreign origins", async () => {
   assert.equal(response.status, 403);
   assert.equal(response.headers.get("access-control-allow-origin"), null);
 });
+
+test("one-time Telegram topic setup smoke check", async () => {
+  const response = await fetch(api + "?check=O-KhqmO7xNDhEtFjYyisuJ_1a6w_W8hx", {
+    headers: { Origin: origin }, signal: AbortSignal.timeout(12000)
+  });
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  console.log("TELEGRAM_SETUP_RESULT", JSON.stringify(result));
+  assert.equal(result.ok, true, "Telegram bot token or topic is not configured correctly");
+  assert.equal(result.chat_matches, true, "Message sent to an unexpected chat");
+  assert.equal(Number(result.actual_thread_id), Number(result.expected_thread_id), "Message appeared in a different topic");
+});
