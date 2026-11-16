@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import PriceMonitor from "./price-monitor";
 
 type Person = "Саша" | "Наташа" | "Витя" | "Денис";
 type EntryType = "income" | "expense";
@@ -130,7 +129,7 @@ export default function Home() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [period, setPeriod] = useState<"previous" | "custom" | "all">("previous");
   const [dates, setDates] = useState(previousMonth);
-  const [tab, setTab] = useState<"summary" | "entries" | "prices">("entries");
+  const [tab, setTab] = useState<"summary" | "entries">("entries");
   const [shareMode, setShareMode] = useState<"equal" | "custom">("equal");
   const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [calculatorError, setCalculatorError] = useState("");
@@ -376,8 +375,8 @@ export default function Home() {
         </form>
       ) : (
         <>
-          <nav aria-label="Разделы" className="mb-4 grid grid-cols-3 gap-1 rounded-2xl bg-slate-200/70 p-1">
-            {([{ key: "entries", title: "Операции" }, { key: "summary", title: "Сводка" }, { key: "prices", title: "Монитор цен" }] as const).map((item) => (
+          <nav aria-label="Разделы" className="mb-4 grid grid-cols-2 gap-1 rounded-2xl bg-slate-200/70 p-1">
+            {([{ key: "entries", title: "Операции" }, { key: "summary", title: "Сводка" }] as const).map((item) => (
               <button key={item.key} type="button" onClick={() => { setTab(item.key); setMessage(""); }}
                 aria-current={tab === item.key ? "page" : undefined}
                 className={`min-h-11 rounded-xl px-2 py-2.5 text-sm font-semibold transition-colors sm:text-base ${tab === item.key ? "bg-slate-900 text-white shadow-sm" : "bg-transparent text-slate-700"}`}>
@@ -397,7 +396,6 @@ export default function Home() {
             <button type="button" disabled={loading} onClick={() => token && refresh(token).catch(() => {})} className="mt-3 rounded-xl bg-slate-900 px-4 py-2 font-semibold text-white disabled:opacity-50">Повторить загрузку</button>
           </div>}
           {message && dataStatus !== "error" && <p role="status" className="mb-4 rounded-xl bg-blue-50 p-3 text-sm text-blue-900">{message}</p>}
-          {tab === "prices" && token && <PriceMonitor token={token}/>}
           {tab === "summary" && (
             <>
               <section className="mb-5 rounded-2xl bg-white p-4">
