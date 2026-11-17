@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101e38">
+<title>Авито · Тест мониторинга цен</title>
+<style>
+:root{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#15213a;background:#f5f7fc}
+*{box-sizing:border-box}body{margin:0}button,input{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.48}
+.wrap{max-width:1130px;margin:auto;padding:35px 22px 80px}
+.head{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px;font-size:15px;font-weight:750}.logo{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:#1a4ec6;color:#fff;font-size:22px}
+.micro{font-size:12px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:#61718e}
+.hero{margin-top:35px;padding:36px 38px;background:linear-gradient(115deg,#13223e,#234a92);color:#fff;border-radius:22px;box-shadow:0 16px 34px #1733691c}
+.hero h1{font-size:clamp(27px,4vw,42px);margin:10px 0;letter-spacing:-.035em;line-height:1.13}.hero p{color:#c9d8f2;max-width:700px;line-height:1.6;margin:0}
+.badge{display:inline-flex;padding:7px 10px;border:1px solid #ffffff55;border-radius:20px;font-size:12px;color:#f1f5fc}
+.grid{display:grid;grid-template-columns:1.12fr .88fr;gap:19px;margin-top:21px}
+.card{background:#fff;border:1px solid #e6ebf4;border-radius:20px;padding:25px;box-shadow:0 5px 19px #23365909}
+.card h2{font-size:19px;letter-spacing:-.02em;margin:0 0 8px}.muted{font-size:13px;color:#64748b;line-height:1.55}
+.row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.row.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+label{display:block;font-size:12px;color:#566786;font-weight:700;margin:17px 0 7px}
+input{width:100%;border:1px solid #d7e0ed;border-radius:10px;padding:12px 12px;background:#fff;color:#172a47;outline:0}
+input:focus{border-color:#346ade;box-shadow:0 0 0 3px #346ade21}
+.actions{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}
+.primary{border:0;border-radius:11px;background:#275be3;color:#fff;padding:13px 18px;font-weight:700}
+.secondary{border:1px solid #d9e3f0;border-radius:11px;background:#fff;color:#1a3157;padding:12px 17px;font-weight:700}
+.danger{border:1px solid #ffd6d6;background:#fff5f5;color:#a22323}
+.statusline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:20px 0 13px}
+.dot{width:10px;height:10px;background:#abb8ce;border-radius:50%}.dot.live{background:#24865b}.dot.warn{background:#c46f13}
+#statusName{font-weight:750}.progress{height:10px;border-radius:99px;background:#edf2f9;overflow:hidden}.progress span{display:block;height:100%;width:0;background:#3966e5;transition:width .3s}
+.info{padding:16px;background:#f3f7ff;border-radius:12px;color:#445675;font-size:13px;line-height:1.6;margin-top:18px}
+#captchaBox{display:none;background:#fff3df;border:1px solid #ffd49c;padding:16px;border-radius:12px;margin-top:20px}
+#captchaBox b{display:block;margin-bottom:6px}
+#captchaBox button{margin-top:12px}
+.tablewrap{overflow:auto;border:1px solid #e5eaf1;border-radius:14px;margin-top:20px}
+table{width:100%;border-collapse:collapse;min-width:700px;font-size:13px}th{text-align:left;background:#f8fafc;color:#62718a;font-size:11px;text-transform:uppercase;letter-spacing:.065em;padding:14px}
+td{padding:14px;border-top:1px solid #edf1f6}tr:hover td{background:#fbfcff}
+.price{font-weight:800;color:#193b76}.fine{font-size:12px;color:#6f819e}
+#feedback{min-height:18px;color:#b02828;margin-top:13px;font-size:13px}
+#loginCard{max-width:520px;margin:24px auto}
+.footer{margin-top:25px;color:#8290a7;font-size:12px;line-height:1.6}
+a{color:#285cce}
+@media(max-width:850px){.grid{grid-template-columns:1fr}.hero{padding:25px}.card{padding:20px}}
+@media(max-width:500px){.wrap{padding:18px 12px 60px}.row,.row.three{grid-template-columns:1fr}.hero{margin-top:20px}}
+</style>
+</head>
+<body>
+<main class="wrap">
+<header class="head"><div class="brand"><div class="logo">₽</div><div><div>Price Monitor</div><div class="micro">Пилот · Авито</div></div></div><div class="micro">GitHub Pages + Supabase + Edge</div></header>
+<section class="hero"><span class="badge">Тестовая версия · данные удаляются при новом запуске</span><h1>Мониторинг цен<br>посуточной аренды</h1><p>Сбор отображаемой цены карточки Авито для трёхсуточных окон. Запускается с этой страницы, выполняется в Microsoft Edge на компьютере и сохраняет временные результаты в Supabase.</p></section>
+<section class="card" id="loginCard">
+<h2>Доступ к тестовому инструменту</h2><p class="muted">Используется тот же общий пароль, что и в Business Finance. Пароль не хранится на этом сайте.</p>
+<label for="password">Пароль</label><input id="password" type="password" autocomplete="current-password" placeholder="Введите пароль Business Finance">
+<div class="actions"><button class="primary" id="loginBtn">Войти</button></div><div id="loginError" class="fine" style="color:#b02828;margin-top:12px"></div>
+</section>
+<section id="dashboard" style="display:none">
+<div class="grid">
+<section class="card">
+<h2>Параметры сбора</h2><p class="muted">Каждая дата заезда проверяется отдельно. Для каждой даты формируется адрес с checkIn, checkOut и количеством гостей.</p>
+<label for="listing">Ссылка на объявление</label><input id="listing" value="https://www.avito.ru/sankt-peterburg/kvartiry/kvartira-studiya_20_m_1_krovat_4437698357">
+<div class="row"><div><label for="start">Первый заезд</label><input id="start" type="date" value="2026-11-21"></div><div><label for="end">Последний заезд</label><input id="end" type="date" value="2026-11-30"></div></div>
+<div class="row"><div><label for="nights">Ночей</label><input id="nights" type="number" value="3" min="1" max="14"></div><div><label for="guests">Взрослых гостей</label><input id="guests" type="number" value="2" min="1" max="6"></div></div>
+<div class="actions"><button class="primary" id="startBtn">Запустить мониторинг</button><button class="secondary" id="refreshBtn">Обновить</button></div>
+<div id="feedback"></div>
+</section>
+<section class="card">
+<h2>Текущий запуск</h2><p class="muted">После нажатия «Запустить» задача попадёт в очередь Supabase. Локальный сборщик должен быть включён.</p>
+<div class="statusline"><span id="dot" class="dot"></span><span id="statusName">Нет задания</span></div>
+<div class="progress"><span id="bar"></span></div>
+<p id="statusDescription" class="muted">Нажмите «Запустить мониторинг».</p>
+<div id="captchaBox"><b>Требуется проверка Авито</b><div class="muted">На Windows-компьютере, где запущен сборщик, откройте окно Edge, пройдите CAPTCHA, затем нажмите «Продолжить» здесь. Браузер останется на проблемном интервале.</div><button class="primary" id="resumeBtn">Я прошёл проверку — продолжить</button></div>
+<div class="actions"><button class="secondary danger" id="cancelBtn" disabled>Остановить</button></div>
+<div class="info">Важно: <strong>card_price_rub</strong> — цена карточки при выбранных датах, а не итоговая сумма бронирования за три ночи. Приложение не умножает её на количество ночей.</div>
+</section>
+</div>
+<section class="card" style="margin-top:20px">
+<div class="head"><div><h2>Результаты по датам</h2><div class="muted">Временная таблица Supabase очищается при каждом новом запуске.</div></div><button class="secondary" id="csvBtn">Экспорт CSV</button></div>
+<div class="tablewrap"><table><thead><tr><th>Заезд</th><th>Выезд</th><th>Цена карточки</th><th>Статус</th><th>Источник</th></tr></thead><tbody id="rows"><tr><td colspan="5" class="fine">Результатов пока нет</td></tr></tbody></table></div>
+</section>
+<div class="footer">Локальный исполнитель: <code>py -3 public/price-monitor-test/worker.py</code> (при скачивании репозитория). Без включённого исполнителя задача останется в очереди. CAPTCHA решается только в Edge на компьютере с исполнителем. <a href="https://github.com/vakazarinov/business-finance/tree/main/public/price-monitor-test" target="_blank" rel="noopener">Исходный код</a>.</div>
+</section>
+</main>
+<script>
+"use strict";
+const FINANCE="https://vzfpcwfasnqpuzezkbbh.supabase.co/functions/v1/finance-direct";
+const API="https://vzfpcwfasnqpuzezkbbh.supabase.co/functions/v1/price-monitor-test";
+const $=(id)=>document.getElementById(id);
+let token=sessionStorage.getItem("avito_test_token")||"";
+let last={job:null,prices:[]};
+const safe=(text)=>String(text==null?"":text);
+const money=(n)=>n==null?"—":new Intl.NumberFormat("ru-RU").format(n)+" ₽";
+async function post(url,data){
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
+ try{
+  const response=await fetch(url,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify(data),cache:"no-store",signal:controller.signal});
+  const body=await response.json().catch(()=>({error:"Некорректный ответ сервера"}));
+  if(!response.ok)throw new Error(body.error||"Ошибка HTTP "+response.status);
+  return body;
+ }finally{clearTimeout(timer)}
+}
+async function api(action,params={}){return post(API,{action,token,...params})}
+function loggedIn(yes){$("loginCard").style.display=yes?"none":"block";$("dashboard").style.display=yes?"block":"none"}
+async function login(){
+ $("loginError").textContent="";$("loginBtn").disabled=true;
+ try{
+  const r=await post(FINANCE,{action:"login",password:$("password").value});
+  token=r.token;sessionStorage.setItem("avito_test_token",token);$("password").value="";
+  loggedIn(true);await refresh();
+ }catch(e){$("loginError").textContent=e.message}
+ finally{$("loginBtn").disabled=false}
+}
+function statusText(s){return {queued:"В очереди",running:"Сбор выполняется",captcha_required:"Ожидание CAPTCHA",completed:"Завершено",failed:"Ошибка",cancelled:"Остановлено"}[s]||"Нет задания"}
+function render(){
+ const j=last.job,rows=last.prices||[];
+ $("statusName").textContent=statusText(j&&j.status);
+ const active=j&&["queued","running","captcha_required"].includes(j.status);
+ $("dot").className="dot"+(j&&j.status==="running"?" live":j&&j.status==="captcha_required"?" warn":"");
+ $("bar").style.width=j&&j.total?(Math.round(j.processed/j.total*100)+"%"):"0";
+ $("statusDescription").textContent=j?(j.message+" · "+j.processed+"/"+j.total+" интервалов · "+new Date(j.created_at).toLocaleString("ru-RU")):"Нажмите «Запустить мониторинг».";
+ $("captchaBox").style.display=j&&j.status==="captcha_required"?"block":"none";
+ $("startBtn").disabled=!!active;$("cancelBtn").disabled=!active;
+ const tbody=$("rows");tbody.textContent="";
+ if(!rows.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=5;td.className="fine";td.textContent="Результатов пока нет";tr.append(td);tbody.append(tr)}
+ for(const r of rows){
+  const tr=document.createElement("tr");
+  for(const v of [r.checkin,r.checkout,money(r.price_rub),r.status,r.source||"—"]){
+   const td=document.createElement("td");td.textContent=safe(v);
+   if(td.cellIndex===-1 && v===money(r.price_rub))td.className="price";tr.append(td)
+  }tbody.append(tr);
+ }
+}
+async function refresh(){
+ if(!token)return;
+ try{last=await api("status");$("feedback").textContent="";render()}
+ catch(e){$("feedback").textContent=e.message;if(/Войдите/.test(e.message)){sessionStorage.removeItem("avito_test_token");token="";loggedIn(false)}}
+}
+async function start(){
+ $("feedback").textContent="";$("startBtn").disabled=true;
+ try{
+  await api("start",{url:$("listing").value.trim(),start_date:$("start").value,end_date:$("end").value,nights:Number($("nights").value),guests:Number($("guests").value)});
+  await refresh();
+ }catch(e){$("feedback").textContent=e.message}
+ finally{if(!last.job||!["queued","running","captcha_required"].includes(last.job.status))$("startBtn").disabled=false}
+}
+async function act(action){
+ try{await api(action,{job_id:last.job.id});await refresh()}
+ catch(e){$("feedback").textContent=e.message}
+}
+function download(){
+ const values=[["checkin","checkout","card_price_rub","status","source","captured_at"]];
+ for(const r of last.prices||[])values.push([r.checkin,r.checkout,r.price_rub??"",r.status,r.source,r.captured_at]);
+ const content=values.map(a=>a.map(v=>'"'+safe(v).replaceAll('"','""')+'"').join(",")).join("\r\n");
+ const blob=new Blob(["\ufeff",content],{type:"text/csv;charset=utf-8"});
+ const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download="avito-price-monitor-test.csv";link.click();URL.revokeObjectURL(link.href);
+}
+$("loginBtn").onclick=login;$("password").onkeydown=e=>{if(e.key==="Enter")login()};
+$("startBtn").onclick=start;$("refreshBtn").onclick=refresh;
+$("cancelBtn").onclick=()=>act("cancel");$("resumeBtn").onclick=()=>act("resume");$("csvBtn").onclick=download;
+if(token){loggedIn(true);refresh()} else loggedIn(false);
+setInterval(()=>{if(token)refresh()},5000);
+</script>
+</body>
+</html>
