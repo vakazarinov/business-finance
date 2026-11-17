@@ -1,0 +1,27 @@
+name: Price monitor pilot checks
+on:
+  push:
+    paths:
+      - 'public/price-monitor-test/**'
+      - '.github/workflows/price-monitor-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Python worker syntax
+        run: python -m py_compile public/price-monitor-test/worker.py
+      - name: Validate dashboard JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path('public/price-monitor-test/index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, re.S | re.I)
+          assert len(scripts) == 1, f'Expected one inline script, got {len(scripts)}'
+          Path('/tmp/monitor-test.js').write_text(scripts[0], encoding='utf-8')
+          PY
+          node --check /tmp/monitor-test.js
