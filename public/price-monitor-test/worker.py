@@ -281,7 +281,7 @@ def main():
                                 client.call("fail", job_id=claimed["id"], message=str(exc)[:250])
                             except Exception:
                                 pass
-                time.sleep(5)
+                time.sleep(15)
             except (URLError, TimeoutError, RuntimeError, OSError) as exc:
                 print("Проблема связи с API:", str(exc)[:230], "— повтор через 10 секунд.")
                 time.sleep(10)
