@@ -158,7 +158,7 @@ $("loginBtn").onclick=login;$("password").onkeydown=e=>{if(e.key==="Enter")login
 $("startBtn").onclick=start;$("refreshBtn").onclick=refresh;
 $("cancelBtn").onclick=()=>act("cancel");$("resumeBtn").onclick=()=>act("resume");$("csvBtn").onclick=download;
 if(token){loggedIn(true);refresh()} else loggedIn(false);
-setInterval(()=>{if(token)refresh()},5000);
+setInterval(()=>{if(token && !document.hidden)refresh()},15000);
 </script>
 </body>
 </html>
